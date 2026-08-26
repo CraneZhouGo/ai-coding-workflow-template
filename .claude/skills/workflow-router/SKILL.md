@@ -1,120 +1,51 @@
 ---
 name: workflow-router
-description: 根据需求复杂度和代码库实际影响范围，自动选择 L0/L1/L2/L3 AI Coding Workflow。适用于新 Feature、Bug、Refactoring、Architecture Change 等开发任务。
+description: 根据需求复杂度和代码库实际影响范围，自动评估风险档 R1/R2/R3/R4 并加载对应门控流程。适用于新 Feature、Bug、Refactoring、Architecture Change 等开发任务。
 ---
 
-# Workflow Router
+# Workflow Router v2
 
 ## Goal
-
-把用户的自然语言需求路由到最合适的 Workflow Level。
-
-Level 不是开发阶段，而是需求复杂度对应的工作流强度。
+把用户自然语言需求路由到最合适的风险档（R1~R4），并给出该档必须开启的门控。
 
 ## Core Principle
+简单任务快速完成，复杂任务增加规格、规划与人工评审。不要因为简单而流程化，也不要因为复杂而直接编码。
 
-简单任务快速完成，复杂任务增加规格、规划和人工审核。
+## 输入模板（Phase A）
+明确 Goal / Scope / Non-goals / Acceptance Criteria / Constraints。
+R2 及以上若 AC/Constraints 缺失，必须追问补齐；R1 可省略。
 
-不要因为任务简单而强行流程化，也不要因为任务复杂而直接编码。
+## 代码库探索（Phase B）
+只探索任务相关范围，防止过度扫描。发现复杂度提升时立即 Re-evaluate。
 
-## Assessment Dimensions
+## 评分（Phase C）
+读取 `v2/complexity-matrix.md`，按 8 维加权评分，记录各维度明细。
 
-读取 `complexity-matrix.md`，从以下维度分析：
+## 规则应用（Phase D）
+读取 `v2/routing-rules.md`，应用红旗升档规则与用户覆盖规则。
 
-1. Scope
-2. Business Complexity
-3. Code Impact
-4. Architecture Impact
-5. Data Impact
-6. Risk
-7. Collaboration
+## 合并与输出（Phase E）
+final_tier = max(level_from(weighted_score), level_from(rules), level_from(red_flags))
+读取 `v2/levels.md` 加载对应门控配置。
+输出 Assessment：
 
-## Assessment Order
-
-### Phase A — Understand
-
-明确：
-
-- Goal
-- Scope
-- Acceptance Criteria
-- Constraints
-- Expected Output
-
-### Phase B — Repository Reality
-
-根据任务需要检查：
-
-- 项目结构
-- 相关模块
-- 相关类
-- 数据模型
-- API
-- MQ / Redis / DB
-- 配置
-- 测试
-- 依赖关系
-
-不要为了评分而无意义地扫描整个仓库。
-
-### Phase C — Score
-
-按照 `complexity-matrix.md` 计算基础分。
-
-### Phase D — Mandatory Rules
-
-按照 `routing-rules.md` 应用最低等级和强制升级规则。
-
-### Phase E — Select
-
-输出：
-
-```text
 Workflow Assessment
 -------------------
-Level:
-Score:
-Risk:
-Scope:
-Architecture Impact:
-Data Impact:
-Reason:
-Workflow:
-Required Tools:
-```
+final_tier: R{n}
+score: {n}/39
+dimensions:
+  scope: n | business: n | code: n | architecture: n
+  data: n | infrastructure: n | risk: n | collaboration: n
+red_flags_hit: [list]
+reason: ...
+workflow: gates/R{n}.md
+required_tools: [...]
 
-### Phase F — Re-evaluate
+## Tool Check（Phase F）
+读取 `v2/toolcheck.md`，按 final_tier 检查工具可用性，缺失给初始化引导。
 
-代码库探索或实现过程中发现复杂度提升时，立即升级。
+## Re-evaluate（Phase G）
+升级自动；降级需说明原因+被移除流程+风险变化并请求确认。
 
-允许：
-
-L0 → L1 → L2 → L3
-
-不允许静默降级。
-
-## Tool Mapping
-
-### L0
-
-Claude Code
-
-### L1
-
-Superpowers + Claude Code
-
-### L2
-
-Superpowers + OpenSpec + Claude Code + Plannotator
-
-### L3
-
-Superpowers + OpenSpec + Claude Code + Plannotator + 多 Agent/隔离工作区（需要时）
-
-## Important
-
-不要把 Workflow Level 当成用户必须理解的概念。
-
-用户只需要描述需求。
-
-Router 负责选择流程。
+## 完成后
+按 `v2/metrics.md` 记录一条 record，按 CLAUDE.md「完成要求」报告。
