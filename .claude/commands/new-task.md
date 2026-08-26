@@ -7,50 +7,22 @@ description: 自动分析需求复杂度并选择 L0/L1/L2/L3 Workflow
 你现在负责处理一个新的开发需求。
 
 ## Step 1 — Workflow Assessment
-
-必须先读取：
-
-- `.claude/skills/workflow-router/SKILL.md`
-- `.claude/skills/workflow-router/complexity-matrix.md`
-- `.claude/skills/workflow-router/routing-rules.md`
-
-然后：
-
-1. 理解用户需求。
-2. 结合当前代码库进行必要的探索。
-3. 计算复杂度。
-4. 判断最低安全 Workflow Level。
-5. 输出简短的 Assessment。
-6. 加载对应的 L0/L1/L2/L3 Workflow。
+1. 读取 `.claude/skills/workflow-router/SKILL.md` 及其引用的 v2 组件（complexity-matrix/routing-rules/levels/toolcheck）。
+2. 理解需求，结合代码库做必要探索。
+3. 按 8 维加权评分，应用红旗规则，输出 final_tier 与 Assessment。
+4. 执行 Tool Check（确认 OpenSpec/Plannotator 可用性）。
+5. 加载 `gates/R{n}.md`。
 
 ## Step 2 — Execute Selected Workflow
-
-严格执行对应 Workflow 文件中的流程。
+严格执行对应 gates/R{n}.md 中的流程。
 
 ## Step 3 — Re-evaluation
-
-在真正修改代码前，如果发现以下任一情况：
-
-- 影响范围扩大
-- 跨模块
-- 跨服务
-- 数据结构变化
-- 核心业务规则变化
-- 高风险链路
-- 需要多 Agent
-- 架构方案发生变化
-
-重新评估 Workflow Level。
-
-如果需要升级，立即升级并执行更高等级 Workflow。
+实现前若发现影响范围扩大/跨模块/跨服务/数据结构变化/核心规则变化/高风险链路/需多 Agent，重新评估 final_tier，如需升级立即升级。
 
 ## Step 4 — Final Verification
-
-完成后必须报告：
-
-- Selected Level
-- Final Level
+完成后记录 metrics，并报告：
+- Initial tier / Final tier
 - Changed Files
-- Tests
-- Verification Result
+- Tests / Verification Result
+- Review Result
 - Remaining Risks
