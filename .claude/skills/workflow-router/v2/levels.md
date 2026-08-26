@@ -19,5 +19,5 @@
 ## 使用说明
 
 - 档位越高，保留的天花板阶段越多。
-- R1 不建 OpenSpec Change；R2+ 启用 OpenSpec 四件套（proposal/specs/design/tasks）。
+- R1 不建 OpenSpec Change；R2 启用 OpenSpec 变更（proposal/specs/tasks，设计仅记录）；R3+ 必含 design.md。
 - 每档的完整流程见 `gates/R{n}.md`。
