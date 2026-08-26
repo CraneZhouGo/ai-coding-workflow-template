@@ -9,7 +9,7 @@ description: 汇总 Workflow Metrics，输出升级率/误判提示，辅助调�
 ## 报告内容
 1. 任务总数、各档（initial/final）分布
 2. 升级率：initial_tier < final_tier 的比例
-3. 误判提示：若升级率偏高（如 >30%），提示评分矩阵或红旗规则可能低估，建议调整 v2/complexity-matrix.md 或 v2/routing-rules.md
+3. 误判提示：若升级率偏高（如 >30%），提示评分矩阵或红旗规则可能低估，建议调整 .claude/skills/workflow-router/v2/complexity-matrix.md 或 .claude/skills/workflow-router/v2/routing-rules.md
 4. 返工率与评审被拒率：过高则提示计划/评审门控需加强
 
 ## 输出示例
