@@ -1,13 +1,13 @@
 ---
 date created: 2026-08-25 11:54:49
-date modified: 2026-08-25 12:04:44
+date modified: 2026-08-26 12:00:00
 ---
 # AI Coding Workflow Template 详细使用说明
 
-> 版本：V1.0  
+> 版本：V2.0  
 > 适用范围：Java / Spring Boot / Spring Cloud / DDD / 微服务项目  
 > 核心工具：Claude Code + Superpowers + OpenSpec + Plannotator  
-> 核心思想：根据需求复杂度自动选择 L0 / L1 / L2 / L3 Workflow
+> 核心思想：根据需求复杂度自动评估风险档 R1~R4，并叠加对应门控
 
 ---
 
@@ -44,9 +44,11 @@ Claude Code 直接修改代码
  ↓
 Workflow Router
  ↓
-复杂度分析
+风险/复杂度分析
  ↓
-自动选择 L0/L1/L2/L3
+自动评估 R1/R2/R3/R4
+ ↓
+叠加对应门控
  ↓
 执行对应 Workflow
  ↓
@@ -61,23 +63,23 @@ Workflow Router
 
 ---
 
-# 2. L0 / L1 / L2 / L3 到底是什么
+# 2. R1~R4 风险档是什么
 
-L0/L1/L2/L3 不是软件开发生命周期，也不是“项目阶段”。
+R1/R2/R3/R4 不是软件开发生命周期，也不是“项目阶段”。
 
 它们代表：
 
-> 根据当前需求复杂度选择不同强度的 AI Coding Workflow。
+> 根据当前需求复杂度评估出的风险档位，以及该档位必须开启的门控列表。
 
-## L0
+有一个“天花板”概念需要先理解：S0~S9 定义了完整工程流程（需求治理 → 规格化 → 架构设计 → 计划 → 实施 → 验证 → 代码评审 → 集成 → 交付 → 度量）。低风险任务从这条完整流程上裁剪不需要的阶段，档位越高保留的阶段与人工 Gate 越多，这就是**门控叠加**。
+
+## R1（Low，低风险）
 
 适用于：
 
 - 明确的小 Bug
-- 配置修改
 - 文案修改
-- 简单 SQL 修改
-- 单字段调整
+- 单点配置修改
 - 单文件或极小范围修改
 - 低风险任务
 
@@ -93,6 +95,8 @@ L0/L1/L2/L3 不是软件开发生命周期，也不是“项目阶段”。
 修改
  ↓
 测试
+ ↓
+查看 diff
  ↓
 完成
 ```
@@ -111,61 +115,20 @@ Claude Code
 
 ---
 
-## L1
+## R2（Medium，中风险）
 
 适用于：
 
+- 新查询接口
+- 常规 CRUD 增强
 - 小型 Feature
-- 2~5 个文件的局部修改
-- 普通业务逻辑
-- 没有重大架构变化
-- 风险较低
+- 有业务规则/数据或架构影响的常规功能
+- 风险中等
 
 流程：
 
 ```text
 需求
- ↓
-分析
- ↓
-代码探索
- ↓
-轻量 Plan
- ↓
-实现
- ↓
-测试
- ↓
-Self Review
-```
-
-主要工具：
-
-```text
-Superpowers
-Claude Code
-```
-
-OpenSpec 和 Plannotator 可以根据情况使用。
-
----
-
-## L2
-
-适用于：
-
-- 中型 Feature
-- 跨模块
-- 复杂业务规则
-- 数据或架构有明显影响
-- 中高风险业务
-
-流程：
-
-```text
-需求
- ↓
-Superpowers
  ↓
 需求分析
  ↓
@@ -173,21 +136,19 @@ Superpowers
  ↓
 OpenSpec
  ↓
-Design / Spec
+proposal / specs / tasks
  ↓
-Implementation Plan
+计划确认
  ↓
 Plannotator Plan Review
  ↓
 人工批准
  ↓
-Claude Code 实现
+TDD 实现
  ↓
 测试
  ↓
 Plannotator Code Review
- ↓
-修复
  ↓
 最终验证
 ```
@@ -203,7 +164,56 @@ Plannotator
 
 ---
 
-## L3
+## R3（High，高风险）
+
+适用于：
+
+- 订单状态机
+- 日志基础设施集成
+- Schema 变更
+- 基础设施/数据/架构有显著影响的需求
+- 中高风险业务
+
+流程：
+
+```text
+需求（含 Non-goals）
+ ↓
+代码探索
+ ↓
+OpenSpec
+ ↓
+proposal / specs / design.md / 详细 tasks
+ ↓
+Plannotator Plan Review
+ ↓
+规格/架构确认
+ ↓
+人工批准
+ ↓
+TDD 实现
+ ↓
+单元 + 集成 + 契约测试
+ ↓
+Plannotator Code Review
+ ↓
+专项评审（安全/数据）
+ ↓
+最终验证
+```
+
+主要工具：
+
+```text
+Superpowers
+OpenSpec
+Claude Code
+Plannotator
+```
+
+---
+
+## R4（Critical，极高风险 / 门控全开）
 
 适用于：
 
@@ -219,23 +229,21 @@ Plannotator
 流程：
 
 ```text
-需求
+完整需求（Goal/Scope/Non-goals/AC/Constraints）
  ↓
-完整代码库理解
+代码库理解
  ↓
 Superpowers
  ↓
 Architecture Analysis
  ↓
-OpenSpec
+OpenSpec Proposal
  ↓
-Proposal
+OpenSpec Design（+ADR）
  ↓
-Design
+OpenSpec Specs
  ↓
-Specs
- ↓
-Tasks
+OpenSpec Tasks（WBS + 依赖）
  ↓
 Implementation Plan
  ↓
@@ -247,21 +255,17 @@ Plannotator Plan Review
  ↓
 多 Agent / 独立 Worktree（需要时）
  ↓
-并行实现
+并行实现（TDD）
  ↓
-单元测试
- ↓
-集成测试
+单元 / 集成 / 迁移 / 专项测试
  ↓
 Integration
  ↓
 Plannotator Code Review
  ↓
-最终验证
- ↓
 Merge
  ↓
-OpenSpec Archive
+OpenSpec apply / archive + 发布审批
 ```
 
 ---
@@ -269,6 +273,17 @@ OpenSpec Archive
 # 3. 四个工具分别负责什么
 
 不要把四个工具理解成同一种东西。
+
+工具职责边界可以浓缩成一句话：
+
+> **产物归 OpenSpec、过程归 Superpowers、评审归 Plannotator、执行归 Claude Code。**
+
+| 职责 | 归属 |
+|---|---|
+| 产物/生命周期/审计（State） | OpenSpec：`proposal.md` / `specs/` / `design.md` / `tasks.md` + `apply`/`archive`/`verify` |
+| 过程方法论（Flow） | Superpowers：brainstorming / writing-plans / TDD / verification / review / finishing |
+| 人工评审 Gate | Plannotator：Plan Review + Code Review + Compound Planning |
+| 执行层 | Claude Code：读写代码、跑命令、测试、git |
 
 ## Claude Code
 
@@ -294,7 +309,7 @@ OpenSpec Archive
 
 定位：
 
-> Agent Workflow 能力层
+> Agent Workflow 能力层（过程方法论）
 
 负责：
 
@@ -313,7 +328,7 @@ Superpowers 中已经包含多个开发工作流能力。
 
 本体系只需要规定：
 
-> 当前任务应该使用什么强度的 Workflow。
+> 当前任务应该使用什么风险档的 Workflow。
 
 ---
 
@@ -321,7 +336,7 @@ Superpowers 中已经包含多个开发工作流能力。
 
 定位：
 
-> Specification Source of Truth
+> Specification Source of Truth（产物）
 
 负责：
 
@@ -373,6 +388,28 @@ Approve / Reject
 
 ---
 
+## 双重写规避（设计/计划只沉淀 OpenSpec）
+
+Superpowers 默认会自己产生两类文件，与 OpenSpec 的产物职责重叠：
+
+1. **brainstorming 默认写 `docs/superpowers/specs/`** → 与 OpenSpec 的 `design.md` 重叠。
+2. **writing-plans 默认生成独立 plan 文件** → 与 OpenSpec 的 `tasks.md` 重叠。
+
+如果两个位置各写一份，就会形成双 Source of Truth，容易双写、漂移，且不知道该以哪份为准。
+
+V2 的约定是**产物唯一，过程共享**：用 Superpowers 的方法论产出 OpenSpec 的产物，不双写。
+
+| 重叠点 | 处理 |
+|---|---|
+| 需求理解 | brainstorming 在对话内探索，只把结论沉淀为 OpenSpec `proposal.md` |
+| 行为规格 | 只写 OpenSpec `specs/`；brainstorming 不产长期文件 |
+| 设计 | 方案对比在对话内完成，只把选定方案写入 OpenSpec `design.md` |
+| 任务/计划 | **用 writing-plans 方法论填充 `tasks.md`，不另建 plan 文件** |
+
+因此，Plannotator 只审 OpenSpec 一处（`tasks.md` 计划 + 代码 diff），不审 Superpowers 过程产物。
+
+---
+
 # 4. 最终架构
 
 ```text
@@ -381,13 +418,12 @@ Approve / Reject
                                 ▼
                       ┌────────────────────┐
                       │  Workflow Router   │
-                      │                    │
-                      │ Complexity Analysis│
+                      │  风险档 + 门控叠加   │
                       └──────────┬─────────┘
                                  │
              ┌───────────────────┼───────────────────┐
              ▼                   ▼                   ▼
-            L0                  L1                  L2
+            R1                  R2                  R3
              │                   │                   │
              ▼                   ▼                   ▼
         Claude Code        Superpowers        Superpowers
@@ -399,7 +435,7 @@ Approve / Reject
                                             Plannotator
                                                    │
                                                    ▼
-                                                  L3
+                                                  R4
                                                    │
                                             Full Workflow
                                                    │
@@ -412,7 +448,8 @@ Approve / Reject
                                               Plannotator
                                                    │
                                                    ▼
-                                               Multi-Agent
+                                              Multi-Agent
+                                              / Worktree
                                                    │
                                                    ▼
                                                Integration
@@ -431,19 +468,28 @@ project/
 │
 ├── .claude/
 │   ├── commands/
-│   │   └── new-task.md
+│   │   ├── new-task.md
+│   │   └── workflow-report.md
+│   │
+│   ├── workflow-metrics/
+│   │   └── tasks.md        （运行时自动生成）
 │   │
 │   └── skills/
 │       └── workflow-router/
 │           ├── SKILL.md
-│           ├── complexity-matrix.md
-│           ├── routing-rules.md
 │           │
-│           └── workflows/
-│               ├── L0.md
-│               ├── L1.md
-│               ├── L2.md
-│               └── L3.md
+│           ├── v2/
+│           │   ├── complexity-matrix.md
+│           │   ├── routing-rules.md
+│           │   ├── levels.md
+│           │   ├── toolcheck.md
+│           │   └── metrics.md
+│           │
+│           └── gates/
+│               ├── R1.md
+│               ├── R2.md
+│               ├── R3.md
+│               └── R4.md
 │
 ├── openspec/
 │
@@ -485,9 +531,21 @@ Claude Code 自动：
 
 1. 加载 Workflow Router
 2. 分析需求
-3. 判断复杂度
-4. 选择 L0/L1/L2/L3
-5. 执行对应 Workflow
+3. 评估复杂度与风险
+4. 执行 Tool Check（检查工具可用性）
+5. 输出风险档 R1~R4
+6. 执行对应门控流程
+
+---
+
+## .claude/commands/workflow-report.md
+
+Metrics 汇总命令。
+
+负责：
+
+- 汇总历史任务的升级率、各档分布、返工率
+- 输出调参建议（提示哪些评分维度偏低、哪些红旗缺失）
 
 ---
 
@@ -495,40 +553,29 @@ Claude Code 自动：
 
 Workflow Router 核心 Skill。
 
-负责定义：
+负责定义路由流程：
 
-- 如何分析需求
-- 如何探索代码
-- 如何评分
-- 如何选择 Level
-- 如何重新评估
-- 如何自动升级
-
----
-
-## complexity-matrix.md
-
-复杂度评分标准。
-
-当前使用：
-
-```text
-Scope
-Business Complexity
-Code Impact
-Architecture Impact
-Data Impact
-Risk
-Collaboration
-```
-
-每项 0~3 分。
+- Phase A 需求理解
+- Phase B 代码库探索
+- Phase C 评分
+- Phase D 规则应用
+- Phase E 合并与输出
+- Phase F Tool Check
+- Phase G Re-evaluate
 
 ---
 
-## routing-rules.md
+## v2/complexity-matrix.md
 
-强制升级规则。
+复杂度评分标准（8 维加权）。
+
+每项 0~3 分，加权求和，最高 39 分。
+
+---
+
+## v2/routing-rules.md
+
+红旗升档规则。
 
 解决：
 
@@ -546,11 +593,35 @@ Collaboration
 
 ---
 
-## workflows/L0~L3.md
+## v2/levels.md
 
-分别定义四套执行流程。
+R1~R4 四档的门控配置总表。
 
-Router 判断出 Level 后加载对应文件。
+Router 判断出档位后加载对应配置。
+
+---
+
+## v2/toolcheck.md
+
+工具可用性检查。
+
+按 final_tier 检查所需工具，缺失给初始化引导。
+
+---
+
+## v2/metrics.md
+
+Metrics 记录字段与写入格式。
+
+每次任务完成后向 `.claude/workflow-metrics/tasks.md` 追加一条记录。
+
+---
+
+## gates/R1~R4.md
+
+分别定义四档执行流程。
+
+Router 判断出档位后加载对应文件。
 
 ---
 
@@ -711,14 +782,14 @@ openspec/
 用户不需要告诉 AI：
 
 ```text
-这是 L1
+这是 R3
 ```
 
-Router 自动判断。
+Router 自动评估风险档，并自动执行 Tool Check。
 
 ---
 
-# 11. L0 实际示例
+# 11. R1 实际示例
 
 需求：
 
@@ -726,20 +797,23 @@ Router 自动判断。
 /new-task 修复 OrderService.getOrder() 的 NPE
 ```
 
-Router 分析：
+Router 分析（8 维加权）：
 
 ```text
-Scope: 0
-Business: 0
-Code Impact: 0
-Architecture: 0
-Data: 0
-Risk: 1
-Collaboration: 0
+Scope:             0 ×1 = 0
+Business:          0 ×1 = 0
+Code Impact:       0 ×1 = 0
+Architecture:      0 ×2 = 0
+Data:              0 ×2 = 0
+Infrastructure:    0 ×2 = 0
+Risk:              1 ×3 = 3
+Collaboration:     0 ×1 = 0
 
-Total: 1
+加权总分: 3
 
-Level: L0
+无红旗命中
+
+final_tier: R1
 ```
 
 然后：
@@ -762,7 +836,7 @@ Level: L0
 
 ---
 
-# 12. L1 实际示例
+# 12. R2 实际示例
 
 需求：
 
@@ -773,40 +847,49 @@ Level: L0
 可能判断：
 
 ```text
-Scope: 1
-Business: 1
-Code Impact: 1
-Architecture: 0
-Data: 1
-Risk: 1
-Collaboration: 0
+Scope:             1 ×1 = 1
+Business:          1 ×1 = 1
+Code Impact:       1 ×1 = 1
+Architecture:      0 ×2 = 0
+Data:              1 ×2 = 2
+Infrastructure:    0 ×2 = 0
+Risk:              1 ×3 = 3
+Collaboration:     0 ×1 = 0
 
-Total: 5
+加权总分: 8
 
-Level: L1
+无红旗命中
+
+final_tier: R2
 ```
 
 流程：
 
 ```text
-Superpowers
- ↓
-分析
+需求分析
  ↓
 代码探索
  ↓
-轻量 Plan
+OpenSpec proposal / specs / tasks
  ↓
-实现
+计划确认
+ ↓
+Plannotator Plan Review
+ ↓
+人工批准
+ ↓
+TDD 实现
  ↓
 测试
  ↓
-Self Review
+Plannotator Code Review
+ ↓
+最终验证
 ```
 
 ---
 
-# 13. L2 实际示例
+# 13. R3 实际示例
 
 需求：
 
@@ -814,7 +897,7 @@ Self Review
 /new-task 增加订单创建后30分钟自动取消功能
 ```
 
-Router 可能判断：
+Router 考虑的因素：
 
 ```text
 订单状态
@@ -824,37 +907,50 @@ Redis/Kafka
 异步流程
 ```
 
-即使代码修改范围不是特别大，也可能因为风险规则直接进入 L2。
+可能判断：
+
+```text
+Scope:             2 ×1 = 2
+Business:          2 ×1 = 2
+Code Impact:       1 ×1 = 1
+Architecture:      1 ×2 = 2
+Data:              1 ×2 = 2
+Infrastructure:    0 ×2 = 0
+Risk:              2 ×3 = 6
+Collaboration:     0 ×1 = 0
+
+加权总分: 15
+
+final_tier: R3
+```
+
+即使代码修改范围不是特别大，也可能因为风险规则直接进入 R3。
 
 流程：
 
 ```text
-Superpowers
- ↓
 OpenSpec
  ↓
-Design
+proposal / specs / design.md / 详细 tasks
  ↓
-Tasks
+Plannotator Plan Review
  ↓
-Plan
- ↓
-Plannotator Review
+规格/架构确认
  ↓
 人工批准
  ↓
-Claude Code
+TDD 实现
  ↓
-Tests
+单元 + 集成 + 契约测试
  ↓
 Plannotator Code Review
  ↓
-Final Verification
+最终验证
 ```
 
 ---
 
-# 14. L3 实际示例
+# 14. R4 实际示例
 
 需求：
 
@@ -873,7 +969,7 @@ Product Service
 直接判定：
 
 ```text
-L3
+final_tier: R4
 ```
 
 因为：
@@ -884,6 +980,25 @@ L3
 - 服务边界变化
 - 数据一致性
 - 多服务联动
+- 多 Agent / 隔离 Worktree
+
+评分参考：
+
+```text
+Scope:             3 ×1 = 3
+Business:          3 ×1 = 3
+Code Impact:       3 ×1 = 3
+Architecture:      3 ×2 = 6
+Data:              3 ×2 = 6
+Infrastructure:    2 ×2 = 4
+Risk:              3 ×3 = 9
+Collaboration:     2 ×1 = 2
+
+加权总分: 36
+
+命中红旗：微服务拆分 → R4
+final_tier: R4
+```
 
 流程：
 
@@ -894,11 +1009,11 @@ Superpowers
  ↓
 OpenSpec Proposal
  ↓
-OpenSpec Design
+OpenSpec Design（+ADR）
  ↓
 OpenSpec Specs
  ↓
-OpenSpec Tasks
+OpenSpec Tasks（WBS + 依赖）
  ↓
 Implementation Plan
  ↓
@@ -908,19 +1023,19 @@ Plannotator
  ↓
 任务拆分
  ↓
-多 Agent（需要时）
+多 Agent / 独立 Worktree（需要时）
  ↓
 实现
  ↓
-Integration
+单元 / 集成 / 迁移 / 专项测试
  ↓
-Integration Test
+Integration
  ↓
 Plannotator Code Review
  ↓
 Merge
  ↓
-OpenSpec Archive
+OpenSpec apply / archive + 发布审批
 ```
 
 ---
@@ -936,7 +1051,7 @@ OpenSpec Archive
 从文字看：
 
 ```text
-L0/L1
+R1/R2
 ```
 
 但探索代码后可能发现：
@@ -958,7 +1073,7 @@ Data Sync
 那么实际复杂度可能变成：
 
 ```text
-L2
+R3
 ```
 
 因此 Router 必须：
@@ -968,7 +1083,7 @@ L2
  +
 代码库探索
  =
-最终 Workflow
+最终风险档
 ```
 
 而不是：
@@ -988,7 +1103,7 @@ Router 不是只判断一次。
 ```text
 初始：
 
-L1
+R1
  ↓
 探索代码
  ↓
@@ -998,16 +1113,16 @@ L1
  ↓
 发现数据一致性问题
  ↓
-升级 L2
+升级 R2 / R3
 ```
 
 允许：
 
 ```text
-L0 → L1 → L2 → L3
+R1 → R2 → R3 → R4
 ```
 
-升级可以自动发生。
+升级可以自动发生，立即执行更高档的流程。
 
 ---
 
@@ -1016,7 +1131,7 @@ L0 → L1 → L2 → L3
 假设：
 
 ```text
-初始 L2
+初始 R2
 ```
 
 后来发现：
@@ -1028,7 +1143,7 @@ L0 → L1 → L2 → L3
 可以建议：
 
 ```text
-建议降级 L1。
+建议降级 R1。
 原因：
 ...
 ```
@@ -1044,76 +1159,67 @@ L0 → L1 → L2 → L3
 
 因此应由开发者决定。
 
+降级时必须说明：原因、被移除的流程、风险变化，并请求确认。
+
 ---
 
-# 18. 复杂度评分
+# 18. 复杂度评分（8 维加权）
 
 当前模板采用：
 
 ```text
-Scope                 0~3
-Business Complexity   0~3
-Code Impact           0~3
-Architecture Impact   0~3
-Data Impact           0~3
-Risk                  0~3
-Collaboration         0~2
+Scope                  ×1   0~3
+Business Complexity    ×1   0~3
+Code Impact            ×1   0~3
+Architecture Impact    ×2   0~3
+Data Impact            ×2   0~3
+Infrastructure         ×2   0~3   （日志/监控/安全/配置/部署管道等横切变更）
+Risk                   ×3   0~3
+Collaboration          ×1   0~3
 ```
 
 最高：
 
 ```text
-20 分
+39 分
 ```
 
 基础映射：
 
 ```text
-0~3     → L0
-4~7     → L1
-8~13    → L2
-14~20   → L3
+0~5     → R1
+6~12    → R2
+13~24   → R3
+25~39   → R4
 ```
 
 但是：
 
 > 总分不是唯一依据。
 
-必须应用 Mandatory Upgrade Rules。
+必须应用红旗升档规则（见下一节）。
 
 ---
 
-# 19. 强制升级规则
+# 19. 红旗规则
 
-最低 L2：
+任一红旗命中，final_tier 直接取最高。
 
-```text
-跨微服务
-数据库 Schema 重要变化
-数据迁移
-Kafka 消息链路
-Redis 分布式一致性
-订单状态机
-库存
-支付
-权限模型
-跨服务事务
-重要异步流程
-核心 API 契约变化
-```
+| 红旗 | 最低档 |
+|---|---|
+| Risk ≥ 3（库存扣减/支付/核心链路等） | R3 |
+| Data = 3（数据迁移/核心表重构） | R3 |
+| Infrastructure ≥ 3（日志/监控/基础设施集成） | R3 |
+| Architecture = 3（模块边界重构） | R3 |
+| 微服务拆分 / 核心架构重构 / 关键基础设施替换 | R4 |
+| 多 Agent / 多隔离 Worktree 需要 | R4 |
 
-直接 L3：
+最终档位公式（保证可复现）：
 
 ```text
-微服务拆分
-核心架构重构
-大规模数据迁移
-核心交易链路整体重构
-多个服务结构性改造
-需要多个 Agent 并行
-多个隔离 Worktree
-大规模模块边界重构
-关键基础设施替换
+final_tier = max(level_from(weighted_score),
+                 level_from(rules),
+                 level_from(red_flags))
 ```
 
 ---
@@ -1138,23 +1244,40 @@ Scope：
 Risk = 3
 ```
 
+命中红旗：
+
+```text
+Risk ≥ 3 → 至少 R3
+```
+
 所以不能：
 
 ```text
-L0
-```
-
-至少：
-
-```text
-L2
+R1
 ```
 
 这可以避免 AI 因为“修改文件少”而低估核心业务风险。
 
 ---
 
-# 21. L2 中 OpenSpec 的作用
+# 21. Tool Check（工具可用性检查）
+
+路由输出 final_tier 之后、执行流程之前，先检查该档位所需的工具是否可用。缺失则给出初始化引导。
+
+| 档位 | 必需工具 | 检查方式 | 缺失引导 |
+|---|---|---|---|
+| R1 | Claude Code | — | — |
+| R2+ | OpenSpec | 存在 `openspec/` 目录 | 提示：运行 `openspec init` 或按 OpenSpec 官方文档初始化 |
+| R2+ | Plannotator | 检查 Plannotator 配置/斜杠命令可用 | 提示：按 Plannotator 官方文档配置插件与 hooks |
+| R4 | git worktree / 多 Agent | `git worktree list` 可用；确认在 git 仓库内 | 提示：先完成 git init/提交，再规划隔离 worktree |
+
+由 `/new-task` 自动完成，不需要用户手动执行。
+
+例如，一个被判定为 R3 的任务要求 OpenSpec，但项目还没有初始化 `openspec/`，Router 会在此处停下并提示初始化，而不是直接卡死在流程中。
+
+---
+
+# 22. R2+ 中 OpenSpec 的作用
 
 OpenSpec 不应该被理解成：
 
@@ -1188,9 +1311,21 @@ OpenSpec
 
 ---
 
-# 22. L2 中 Plannotator 的位置
+# 23. R2+ 中 Plannotator 的位置
 
-推荐：
+先明确评审模型：**确认点全标配，工具强度按风险档分级。**
+
+确认点全标配：任何任务都必须有 ① 计划确认 ② diff 过目。
+
+工具强度分级：
+
+| 风险档 | Plan Review | Code Review |
+|---|---|---|
+| R1 | 终端内确认计划（必） | AI 自审 diff + 用户终端过目（必） |
+| R2 | Plannotator Plan Review（必） | Plannotator Code Review（必） |
+| R3/R4 | Plannotator Plan Review + 规格/架构确认 | Plannotator Code Review + 专项（安全/数据） |
+
+推荐的位置：
 
 ```text
 OpenSpec
@@ -1220,9 +1355,9 @@ Coding
 
 ---
 
-# 23. L3 中多 Agent 的使用原则
+# 24. R4 中多 Agent 的使用原则
 
-不要看到 L3 就强行多 Agent。
+不要看到 R4 就强行多 Agent。
 
 应该先判断：
 
@@ -1261,9 +1396,9 @@ Agent C → Product
 
 ---
 
-# 24. Worktree 的使用
+# 25. Worktree 的使用
 
-L3 如果需要并行开发，建议：
+R4 如果需要并行开发，建议：
 
 ```text
 main
@@ -1284,12 +1419,12 @@ main
 
 ---
 
-# 25. 如何处理用户强制指定 Level
+# 26. 如何处理用户强制指定档位
 
 用户可以说：
 
 ```text
-/new-task L2：增加商品查询接口
+/new-task R2：增加商品查询接口
 ```
 
 Router 可以尊重。
@@ -1299,10 +1434,10 @@ Router 可以尊重。
 如果用户要求：
 
 ```text
-L0：修改支付逻辑
+/new-task R1：修改支付逻辑
 ```
 
-不能简单执行 L0。
+不能简单按 R1 执行。
 
 应该提示：
 
@@ -1310,9 +1445,9 @@ L0：修改支付逻辑
 该需求涉及支付核心链路。
 
 按照项目 Routing Rules：
-最低安全等级为 L2。
+最低安全档为 R3。
 
-如果强制执行 L0，将跳过：
+如果按 R1 执行，将跳过：
 - Specification
 - Plan Review
 - Code Review
@@ -1322,7 +1457,7 @@ L0：修改支付逻辑
 
 ---
 
-# 26. 什么时候直接使用 Claude Code，不使用 /new-task
+# 27. 什么时候直接使用 Claude Code，不使用 /new-task
 
 可以。
 
@@ -1350,7 +1485,7 @@ L0：修改支付逻辑
 
 ---
 
-# 27. 建议的日常工作方式
+# 28. 建议的日常工作方式
 
 每天开发时：
 
@@ -1361,13 +1496,17 @@ claude
  ↓
 /new-task <需求>
  ↓
-Router 自动判断
+Router 自动评估风险档
  ↓
-执行 Workflow
+Tool Check
+ ↓
+执行对应门控流程
  ↓
 测试
  ↓
 Review
+ ↓
+记录 Metrics
  ↓
 完成
 ```
@@ -1390,7 +1529,7 @@ Plan Review
 
 ---
 
-# 28. 新项目与旧项目的区别
+# 29. 新项目与旧项目的区别
 
 ## 新项目
 
@@ -1409,7 +1548,7 @@ Domain
 建议更积极使用：
 
 ```text
-L2/L3
+R3/R4
 ```
 
 因为早期架构决策会影响整个项目。
@@ -1434,7 +1573,7 @@ Codebase Exploration
 
 ---
 
-# 29. 医药电商项目的特殊建议
+# 30. 医药电商项目的特殊建议
 
 对于订单、库存、支付、处方、退款等业务，可以进一步增强：
 
@@ -1442,26 +1581,56 @@ Codebase Exploration
 routing-rules.md
 ```
 
-例如：
+中的红旗规则。例如：
 
 ```text
-处方审核          → 至少 L2
-处方购药          → 至少 L2
-订单状态机        → 至少 L2
-库存扣减          → 至少 L2
-支付              → 至少 L2
-退款              → 至少 L2
-订单/库存一致性   → 至少 L2
-GSP 核心规则      → 至少 L2
-跨服务事务        → L2/L3
-订单系统拆分      → L3
+处方审核          → 最低 R3
+处方购药          → 最低 R3
+订单状态机        → 最低 R3
+库存扣减          → 最低 R3
+支付              → 最低 R3
+退款              → 最低 R3
+订单/库存一致性   → 最低 R3
+GSP 核心规则      → 最低 R3
+跨服务事务        → R3/R4
+订单系统拆分      → R4
 ```
 
-这样 Router 会更符合实际业务风险。
+这些业务普遍命中 `Risk ≥ 3` 红旗（交易/库存/支付/权限），因此最低 R3 与红旗规则保持一致。这样 Router 会更符合实际业务风险。
 
 ---
 
-# 30. 如何逐步优化 Router
+# 31. Workflow Metrics（内置）
+
+V2 内建 Metrics 数据层，不需要手工维护表格。
+
+每次任务完成时，Router 自动向：
+
+```text
+.claude/workflow-metrics/tasks.md
+```
+
+追加一条记录：
+
+```text
+date, task_summary, initial_tier, final_tier, upgraded,
+changed_files, changed_modules, review_reject, rework, duration
+```
+
+新增命令：
+
+```text
+/workflow-report
+```
+
+作用：
+
+- 汇总历史任务的升级率、各档分布、返工率
+- 输出调参建议（提示哪些评分维度偏低、哪些红旗缺失）
+
+---
+
+# 32. 如何逐步优化 Router
 
 第一版不要追求完美。
 
@@ -1471,12 +1640,18 @@ GSP 核心规则      → 至少 L2
 20~50 个真实需求
 ```
 
-然后记录：
+然后通过：
+
+```text
+/workflow-report
+```
+
+查看统计：
 
 ```text
 Requirement
-Initial Level
-Final Level
+Initial Tier
+Final Tier
 Upgrade?
 Review Reject?
 Changed Files
@@ -1488,8 +1663,8 @@ Bug / Rework
 例如：
 
 ```text
-AI 判断 L1
-实际 L2
+AI 判断 R1
+实际 R2
 ```
 
 出现很多次，就说明：
@@ -1498,13 +1673,13 @@ AI 判断 L1
 complexity-matrix.md
 ```
 
-需要调整。
+的阈值/权重需要调整。
 
 例如：
 
 ```text
-AI 判断 L2
-实际 L3
+AI 判断 R2
+实际 R3
 ```
 
 很多次，就说明：
@@ -1513,95 +1688,46 @@ AI 判断 L2
 routing-rules.md
 ```
 
-缺少强制升级条件。
+缺少红旗条件。
 
 ---
 
-# 31. 建议建立 Workflow Metrics
+# 33. V1 / V2 / V3 演进路线
 
-长期可以记录：
+## V1（历史，已归档）
 
-| 指标 | 作用 |
-|---|---|
-| Initial Level | Router 初始判断 |
-| Final Level | 实际最终等级 |
-| Upgrade Rate | 评估是否经常低估 |
-| Review Reject Rate | 方案质量 |
-| Rework Rate | 返工率 |
-| Changed Files | 修改规模 |
-| Changed Modules | 影响范围 |
-| Test Failure Rate | 测试稳定性 |
-| Completion Time | 效率 |
-| Bug Rate | 质量 |
+V1 采用 L0/L1/L2/L3 四层强度模型：
 
-最终可以形成：
+- 7 维等权评分（最高 20 分）
+- 强制升级规则
+- `workflows/L0.md` ~ `L3.md`
 
-```text
-历史任务
- ↓
-Workflow Metrics
- ↓
-Router Rule 优化
- ↓
-更准确的 Level 判断
-```
+V1 在真实项目跑过多个需求，暴露的问题：
 
----
+- 评分矩阵没有“基础设施/横切”维度，日志基础设施集成这类需求被误判为最低档
+- 评分与规则合并没有明确公式，结果不可复现
+- 路由时不检查工具可用性，实际运行会卡死
+- Superpowers 与 OpenSpec 职责重叠，易双写、漂移
+- 没有数据自优化闭环
 
-# 32. V1 / V2 / V3 演进路线
+## V2（当前）
 
-## V1
+V2 改为“风险档 R1~R4 + 门控叠加”模型：
 
-当前模板：
+- 8 维加权评分（最高 39 分）+ 红旗规则
+- 确定性的 `final_tier` 公式
+- 路由阶段内建 Tool Check（工具可用性检查 + 初始化引导）
+- 内建 Workflow Metrics 与 `/workflow-report`
+- 明确工具职责边界：产物归 OpenSpec、过程归 Superpowers、评审归 Plannotator、执行归 Claude Code
 
-```text
-CLAUDE.md
-+
-Workflow Router Skill
-+
-Complexity Matrix
-+
-Routing Rules
-+
-L0~L3
-+
-/new-task
-```
-
-目标：
-
-> 先跑起来。
-
----
-
-## V2
-
-增加：
-
-```text
-Codebase-aware Assessment
-+
-Dynamic Re-evaluation
-+
-更丰富的 Risk Rules
-```
-
-目标：
-
-> 让 Level 判断更加准确。
-
----
-
-## V3
+## V3（未来）
 
 增加：
 
 ```text
 历史任务数据
 +
-Workflow Metrics
-+
-自动优化规则
+Workflow Metrics 自动优化规则
 +
 项目级领域 Risk Profile
 ```
@@ -1612,7 +1738,7 @@ Workflow Metrics
 
 ---
 
-# 33. 最终推荐的团队规范
+# 34. 最终推荐的团队规范
 
 团队成员只需要记住：
 
@@ -1622,13 +1748,19 @@ Workflow Metrics
 /new-task <需求>
 ```
 
+另外，定期跑一次：
+
+```text
+/workflow-report
+```
+
 不需要记：
 
 ```text
 这个应该用 OpenSpec 吗？
 这个应该用 Superpowers 吗？
 这个要不要 Plannotator？
-这个是 L1 还是 L2？
+这个是 R1 还是 R2？
 ```
 
 这些问题交给：
@@ -1639,7 +1771,7 @@ Workflow Router
 
 ---
 
-# 34. 最终完整闭环
+# 35. 最终完整闭环
 
 ```text
                          用户需求
@@ -1656,69 +1788,77 @@ Workflow Router
                            │
                     代码库必要探索
                            │
-                    Routing Rules
+                    Routing / 红旗规则
+                           │
+                     Tool Check
                            │
                            ▼
-                  L0 / L1 / L2 / L3
+                  R1 / R2 / R3 / R4
                            │
         ┌──────────────────┼──────────────────┐
         ▼                  ▼                  ▼
-       L0                 L1                 L2
+       R1                 R2                 R3
         │                  │                  │
    Claude Code       Superpowers       Superpowers
-                                              │
-                                           OpenSpec
-                                              │
-                                            Plan
-                                              │
-                                        Plannotator
-                                              │
-                                          Approval
-                                              │
-                                        Claude Code
-                                              │
-                                           Test
-                                              │
-                                        Code Review
-                                              │
-                                              ▼
-                                             L3
-                                              │
-                                      Full Engineering
-                                              │
-                                  Architecture + Spec
-                                              │
-                                         Plan Review
-                                              │
-                                      Multi-Agent
-                                      （需要时）
-                                              │
-                                         Integration
-                                              │
-                                        Code Review
-                                              │
-                                            Merge
-                                              │
-                                      OpenSpec Archive
+                                          │
+                                       OpenSpec
+                                          │
+                                          Plan
+                                          │
+                                    Plannotator
+                                          │
+                                      Approval
+                                          │
+                                    Claude Code
+                                          │
+                                         Test
+                                          │
+                                    Code Review
+                                          │
+                                          ▼
+                                         R4
+                                          │
+                                  Full Engineering
+                                          │
+                              Architecture + Spec
+                                          │
+                                     Plan Review
+                                          │
+                                  Multi-Agent
+                                  （需要时）
+                                          │
+                                     Integration
+                                          │
+                                    Code Review
+                                          │
+                                        Merge
+                                          │
+                                OpenSpec apply/archive
+                                          │
+                                        完成
+                                          │
+                                       记录 Metrics
+                                          │
+                                    /workflow-report
 ```
 
 ---
 
-# 35. 最重要的设计原则
+# 36. 最重要的设计原则
 
 最后把整套体系浓缩成 8 条：
 
-1. **需求复杂度决定 Workflow Level。**
-2. **用户不需要手动判断 Level。**
-3. **Workflow Router 是统一入口。**
+1. **需求复杂度决定风险档 R1~R4。**
+2. **用户不需要手动判断档位。**
+3. **Workflow Router 是统一入口（`/new-task`）。**
 4. **代码库探索后可以重新评估。**
 5. **复杂度增加时自动升级。**
 6. **高风险任务不能因为代码改动少而降级。**
-7. **L2/L3 在 Coding 前增加人工 Plan Review。**
-8. **L3 只有在真正适合并行时才使用 Multi-Agent。**
+7. **确认点全标配：任何任务必须有计划确认 + diff 过目；R2+ 用 Plannotator。**
+8. **R4 只有在真正适合并行时才使用 Multi-Agent / Worktree。**
 
 最终形成：
 
-> **Requirement → Assessment → Routing → Specification → Planning → Human Gate → Coding → Verification → Review → Delivery**
+> **Requirement → Assessment → Routing → Tool Check → Specification → Planning → Human Gate → Coding → Verification → Review → Delivery → Metrics**
 
-这就是这套 **Claude Code + Superpowers + OpenSpec + Plannotator + L0/L1/L2/L3** 体系的完整落地闭环。
+这就是这套 **Claude Code + Superpowers + OpenSpec + Plannotator + R1/R2/R3/R4** 体系的完整落地闭环。
