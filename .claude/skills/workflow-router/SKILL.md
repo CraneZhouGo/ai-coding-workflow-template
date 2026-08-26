@@ -15,6 +15,8 @@ description: 根据需求复杂度和代码库实际影响范围，自动评估�
 明确 Goal / Scope / Non-goals / Acceptance Criteria / Constraints。
 R2 及以上若 AC/Constraints 缺失，必须追问补齐；R1 可省略。
 
+> R2+ 的 S0 执行阶段需先调用 `superpowers:brainstorming` 澄清需求（bounded 轻量版或 architectural），结论沉淀为 OpenSpec `proposal.md` 输入；详见 `gates/R{n}.md`。
+
 ## 代码库探索（Phase B）
 只探索任务相关范围，防止过度扫描。发现复杂度提升时立即 Re-evaluate。
 

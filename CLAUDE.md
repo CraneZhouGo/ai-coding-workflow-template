@@ -33,6 +33,7 @@ R1~R4 不是开发生命周期，而是根据需求复杂度选择不同强度�
 11. 不要为了省流程而省流程：高风险任务不得降级为简单执行。
 12. 每次任务完成按 `.claude/skills/workflow-router/v2/metrics.md` 记录 Metrics。
 13. 所有结论必须基于当前代码库实际情况，而不是假设。
+14. 修改 workflow 模板自身（SKILL.md / gates / v2 / commands）时，完成前必须交叉核对 design spec（`docs/superpowers/specs/`）与实现：spec 定义的每个阶段（S0~S9）的产物/工具/人工 Gate，都必须在 `gates/R{n}.md` 或 `SKILL.md` 找到对应落地；反之 gate 出现的流程也必须有 spec 出处，不允许任一侧有孤悬项。
 
 ## 3. Workflow Selection
 
