@@ -12,13 +12,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-      - name: Validate rules and calibration cases
-        run: python scripts/validate_workflow.py --repository
-      - name: Run workflow tool tests
+      - name: Validate Adaptive runtime
+        run: python scripts/validate_workflow.py
+      - name: Evaluate routing policy
+        run: python scripts/evaluate_routing.py
+      - name: Run tests
         run: python -m unittest discover -s tests -v
-      - name: Smoke-test empty metrics report
-        run: python scripts/workflow_report.py --metrics .claude/workflow-metrics/tasks.jsonl
-      - name: Build deterministic distribution
+      - name: Build distribution
         run: python scripts/build_distribution.py --output dist/ai-coding-workflow-template.zip
-      - name: Validate distribution manifest
-        run: python scripts/validate_workflow.py --repository --archive dist/ai-coding-workflow-template.zip
+      - name: Validate distribution
+        run: python scripts/validate_workflow.py --archive dist/ai-coding-workflow-template.zip

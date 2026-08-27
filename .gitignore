@@ -1,6 +1,3 @@
-# 运行时数据（不进版本库）
-.claude/workflow-metrics/
-
 # 本地分发产物
 ai-coding-workflow-template.zip
 dist/

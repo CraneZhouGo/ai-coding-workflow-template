@@ -1,86 +1,64 @@
 ---
 name: workflow-router
-description: 根据变更本身的风险证据评估 R1/R2/R3/R4，并将语义门控和交付门控组合为可执行工作流。适用于 Feature、Bug、Refactoring、Architecture Change 等开发任务。
+description: 根据行为风险、影响范围和不确定性，把编码任务路由到 Fast、Standard 或 Governed，并编排 Superpowers、OpenSpec 与 Plannotator。处理新功能、Bug、重构、迁移和基础设施变更时使用。
 ---
 
-# Workflow Router v2.1
+# Workflow Router — V3 Adaptive
 
-## Goal
+本 skill 是薄编排层。它选择工具和关卡，但不复制 Superpowers、OpenSpec 或 Plannotator 的内部方法。
 
-稳定地回答三个不同问题：
+## 1. Build the evidence set
 
-1. 变更本身的风险档位是什么？
-2. 数据、安全、契约、基础设施、合规和发布等哪些门控必须叠加？
-3. 单 Agent、多 Agent、worktree 和协调发布采用什么交付策略？
+先读 `.claude/project-profile.yaml`。从最窄范围开始探索，只收集路由所需事实：
 
-风险、门控和交付策略分别判断，避免循环推理和重复加分。
+- 变更后的用户可观察行为和验收条件
+- 直接修改范围与消费者
+- 公共 API、事件、Schema、权限和关键业务语义
+- 回滚难度、发布协调和当前未知项
 
-## Phase A — 需求输入
+不要在路由前扫描整个仓库。探索输出应是证据，不是长篇仓库摘要。
 
-明确 Goal / Scope / Non-goals / Acceptance Criteria / Constraints。R2+ 缺少 AC 或约束时必须补齐；R1 可以使用简化输入。
+## 2. Select the mode
 
-R2+ 使用 `superpowers:brainstorming` 的方法澄清需求，结论写入唯一规格产物，不额外创建重复文档。
-
-## Phase B — 代码库与项目画像
-
-1. 读取 `.claude/project-profile.yaml`。
-2. 只探索与需求相关的代码、测试、契约、数据和部署范围。
-3. 对每个评分和门控记录证据，不按目录名或业务关键词直接升档。
-
-## Phase C — 风险评分
-
-读取 `v2/complexity-matrix.md`：
-
-- 按 7 个锚定维度计算 0~36 分。
-- 得到 `baseline_tier`。
-- 独立生成 Delivery Profile，不将 Agent 数量计入风险分。
-
-## Phase D — 语义红旗与门控
-
-1. 读取 `v2/routing-rules.md`，按变更语义计算 `final_tier`。
-2. 读取 `v2/gates.md`，把语义门控和交付门控叠加到基础档位门控。
-3. 不适用的高风险门控必须给出依据。
-
-## Phase E — Assessment 输出
+读取 `ROUTING.md`。先检查 Governed 风险触发器，再检查 Fast 的全部准入条件；其余任务进入 Standard。
 
 ```text
-Workflow Assessment
--------------------
-baseline_tier: R{n}
-final_tier: R{n}
-score: {n}/36
-dimensions:
-  scope: n | business: n | code_impact: n | architecture: n
-  data: n | infrastructure: n | runtime_risk: n
-evidence: [...]
-semantic_red_flags: [...]
-required_gates: [...]
-delivery_profile:
-  agents: 1|2+ | worktrees: none|optional|required
-  rollout: none|standard|coordinated | ownership: single|multi-team
-workflow: gates/R{n}.md + v2/gates.md
+if any governed trigger: governed
+else if every fast condition: fast
+else: standard
 ```
 
-## Phase F — Capability Check
+不计算加权总分。未知事实不能当作低风险；先按 Standard 继续定向探索，必要时升级。
 
-读取 `v2/toolcheck.md`。能力状态分为 `available`、`degraded`、`missing`：
+## 3. Check capabilities
 
-- 可安全降级时，说明替代路径并写入 Metrics。
-- R3/R4 的规格或评审能力降级需要用户明确批准。
-- 缺少构建、迁移或回滚能力且门控要求它们时，不得声称完成。
+按所选模式确认能力真实可用：
 
-## Phase G — 执行
+- Superpowers：相关 skills 可被发现和加载。
+- OpenSpec：Standard/Governed 时 `openspec` 已初始化，原生 OPSX skills/commands 可用。
+- Plannotator：需要评审时插件/Hook 与 `plannotator` 能力可用。
+- 项目验证：profile 中对应命令可运行，或能从仓库发现可信替代命令。
 
-读取 `v2/levels.md` 和 `gates/R{n}.md`，执行基础流程与全部 required gates。
+优先调用原生能力。不要复制 OpenSpec 模板、Superpowers 步骤或 Plannotator Hook 配置。
 
-R1 满足项目画像中的快速通道条件时，可以在宣布简短计划后直接执行；否则先确认计划。
+若能力缺失，先给出恢复方法。只有会降低保障级别的降级才需要用户确认。
 
-## Phase H — Re-evaluate
+## 4. Execute the playbook
 
-按 `routing-rules.md` 的检查点重新评分。升级自动发生；降级必须说明评分变化、移除门控和残余风险，并请求确认。
+读取 `PLAYBOOKS.md`，严格执行对应模式。Superpowers 的分析与计划结论直接写入当前 OpenSpec change（若启用），不再创建第二套长期文档。
 
-## Completion
+## 5. Re-evaluate
 
-1. 验证实现、规格、门控产物和最终 diff。
-2. 按 `v2/metrics.md` 生成记录，并通过 `scripts/record_workflow_metric.py` 校验后向 JSONL 追加。
-3. 按 CLAUDE.md 完成要求报告，包括能力降级和未验证事项。
+在以下时点重新路由：
+
+- 初次代码探索完成后
+- 发现公共契约、Schema、数据迁移、权限或关键业务语义变化时
+- 修改超出原模块或出现新的消费者时
+- 实现方案发生实质变化时
+- 最终交付前
+
+升级立即生效。降级只允许在新证据消除风险后发生，并在 Route Card 中说明移除的关卡。
+
+## 6. Finish with evidence
+
+运行实际验证，检查最终 diff，完成当前模式要求的规格校验和评审。不得把计划执行的检查写成已经通过。

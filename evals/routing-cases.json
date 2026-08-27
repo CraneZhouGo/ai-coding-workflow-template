@@ -1,0 +1,149 @@
+[
+  {
+    "id": "copy-change",
+    "summary": "修改单页按钮文案并运行快照测试",
+    "facts": {
+      "clear_acceptance": true,
+      "localized_change": true,
+      "consumers_known": true,
+      "no_boundary_change": true,
+      "easy_rollback": true,
+      "direct_validation": true,
+      "no_design_tradeoff": true
+    },
+    "expected_mode": "fast"
+  },
+  {
+    "id": "localized-auth-fix",
+    "summary": "局部修复授权判断，即使文件少也改变关键语义",
+    "facts": {
+      "clear_acceptance": true,
+      "localized_change": true,
+      "consumers_known": true,
+      "no_boundary_change": true,
+      "easy_rollback": true,
+      "direct_validation": true,
+      "no_design_tradeoff": true,
+      "critical_semantics_changed": true
+    },
+    "expected_mode": "governed"
+  },
+  {
+    "id": "ordinary-feature",
+    "summary": "同一模块新增筛选接口和前端交互",
+    "facts": {
+      "clear_acceptance": true,
+      "localized_change": false,
+      "consumers_known": true,
+      "no_boundary_change": true,
+      "easy_rollback": true,
+      "direct_validation": true,
+      "no_design_tradeoff": false
+    },
+    "expected_mode": "standard"
+  },
+  {
+    "id": "compatible-api-extension",
+    "summary": "为现有 API 增加兼容性可选字段",
+    "facts": {
+      "clear_acceptance": true,
+      "localized_change": false,
+      "consumers_known": true,
+      "no_boundary_change": false,
+      "easy_rollback": true,
+      "direct_validation": true,
+      "no_design_tradeoff": true
+    },
+    "expected_mode": "standard"
+  },
+  {
+    "id": "database-backfill",
+    "summary": "新增字段并回填历史订单数据",
+    "facts": {
+      "clear_acceptance": true,
+      "localized_change": false,
+      "consumers_known": true,
+      "no_boundary_change": false,
+      "easy_rollback": false,
+      "direct_validation": false,
+      "no_design_tradeoff": false,
+      "schema_migration": true,
+      "data_backfill": true
+    },
+    "expected_mode": "governed"
+  },
+  {
+    "id": "payment-read-only-copy",
+    "summary": "支付结果页只修改提示文案，不改变资金语义",
+    "facts": {
+      "clear_acceptance": true,
+      "localized_change": true,
+      "consumers_known": true,
+      "no_boundary_change": true,
+      "easy_rollback": true,
+      "direct_validation": true,
+      "no_design_tradeoff": true,
+      "critical_semantics_changed": false
+    },
+    "expected_mode": "fast"
+  },
+  {
+    "id": "cross-service-contract-break",
+    "summary": "不兼容事件字段变更，需要三个服务协调发布",
+    "facts": {
+      "clear_acceptance": true,
+      "localized_change": false,
+      "consumers_known": true,
+      "no_boundary_change": false,
+      "easy_rollback": false,
+      "direct_validation": false,
+      "no_design_tradeoff": false,
+      "incompatible_public_contract": true,
+      "coordinated_release": true
+    },
+    "expected_mode": "governed"
+  },
+  {
+    "id": "unknown-consumers",
+    "summary": "共享库修改但消费者尚未查清",
+    "facts": {
+      "clear_acceptance": true,
+      "localized_change": true,
+      "consumers_known": false,
+      "no_boundary_change": true,
+      "easy_rollback": true,
+      "direct_validation": true,
+      "no_design_tradeoff": true
+    },
+    "expected_mode": "standard"
+  },
+  {
+    "id": "global-security-default",
+    "summary": "修改全局 CSP 默认策略",
+    "facts": {
+      "clear_acceptance": true,
+      "localized_change": true,
+      "consumers_known": false,
+      "no_boundary_change": false,
+      "easy_rollback": true,
+      "direct_validation": false,
+      "no_design_tradeoff": false,
+      "global_security_or_infrastructure": true
+    },
+    "expected_mode": "governed"
+  },
+  {
+    "id": "test-only-refactor",
+    "summary": "机械整理单个测试文件，不改变生产行为",
+    "facts": {
+      "clear_acceptance": true,
+      "localized_change": true,
+      "consumers_known": true,
+      "no_boundary_change": true,
+      "easy_rollback": true,
+      "direct_validation": true,
+      "no_design_tradeoff": true
+    },
+    "expected_mode": "fast"
+  }
+]

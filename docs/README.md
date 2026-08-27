@@ -1,77 +1,65 @@
----
-date created: 2026-08-25 11:55:06
-date modified: 2026-08-27
----
+# AI Coding Workflow Template V3 Adaptive
 
-# AI Coding Workflow Template V2.1
+这是一个面向 Claude Code 的薄编排模板。它不会重新实现 Superpowers、OpenSpec 或 Plannotator，而是根据需求的真实风险自动选择三种执行模式，并把三者放在各自最有价值的节点。
 
-这是一套可复制到 Java / Spring Boot / 微服务项目中的 AI Coding Workflow 模板。
-
-核心模型：
+用户只需描述需求，或使用：
 
 ```text
-变更风险评分 → R1~R4 基础档位
-变更语义     → data/security/contract/... 门控
-交付特征     → Agent/worktree/rollout 策略
+/new-task <需求>
 ```
 
-三者分别判断，最终工作流为基础门控与可组合门控的并集。
+## Three modes
 
-## Components
+| 模式 | 适用范围 | OpenSpec | Plannotator | Token 策略 |
+|---|---|---|---|---|
+| Fast | 清晰、局部、低风险、易回滚 | 不创建新 change | 无强制 Gate | 只读目标、直接依赖和直接测试 |
+| Standard | 普通功能、模块内协作、有限设计选择 | 原生 propose/apply/validate/archive | Plan Review | 一个 change、定向探索、两遍 AI review |
+| Governed | 数据迁移、权限/资金/库存、契约破坏、跨服务交付 | explore/propose/apply/validate/archive | Plan + Code Review | 隔离高噪声探索，完整风险与交付证据 |
 
-- Claude Code：执行代码、命令、测试和 Git 操作
-- Superpowers：需求、计划、TDD、验证等过程方法
-- OpenSpec：首选规格 Source of Truth
-- Plannotator：首选 Plan/Code Human Review Gate
+路由不使用加权分数。高风险触发器先决定最低保障；只有同时满足全部准入条件才走 Fast；其他任务默认 Standard。
 
-工具不可用时使用 Capability Check 定义的受控降级；门控不能静默消失。
+## Tool contract
 
-## Risk Tiers
+- Superpowers：brainstorming、planning、TDD、debugging、verification、review 等开发方法。
+- OpenSpec：Standard/Governed 的唯一持久化需求与变更事实源。
+- Plannotator：计划和代码的人类决策界面；计划评审由 Hook 自动触发。
+- Claude Code：代码探索、编辑、命令执行和工具编排。
 
-| 档位 | 定位 |
-|---|---|
-| R1 | 明确、局部、低运行时风险；严格条件下可走 Fast Path |
-| R2 | 常规功能或有限业务规则；紧凑规格 + 计划 + TDD + Review |
-| R3 | 显著业务/数据/架构/基础设施风险；设计和专项门控 |
-| R4 | 核心架构、不可逆迁移或协调发布；完整 S0~S9 |
+模板只决定“何时调用”，具体步骤由各工具当前安装版本负责，因此不会因复制旧版命令而快速过时。
 
-风险采用 7 个锚定维度，最高 36 分。协作和多 Agent 不参与风险分，而是进入 Delivery Profile。
+## Business package
 
-## Composable Gates
-
-按变更语义叠加：architecture、data、security、compliance、contract、infrastructure、delivery、observability、isolation。
-
-例如，位于支付模块的纯文案可以是 R1；真正改变支付状态语义时至少 R3，并叠加相应安全/合规门控。
-
-## Quick Start
-
-1. 复制 `.claude/`、`CLAUDE.md` 和 `scripts/` 中的运行时脚本。
-2. 用真实代码库信息填写 `.claude/project-profile.yaml`。
-3. 安装并启用所需工具；OpenSpec/Plannotator 缺失时按 Capability Check 处理。
-4. 使用 `/new-task 你的需求`。
-5. 定期使用 `/workflow-report`。
-
-## Validation
+分发包只有 6 个运行时文件：
 
 ```text
-python scripts/validate_workflow.py --repository
-python scripts/record_workflow_metric.py --record <record.json> --dry-run
-python scripts/workflow_report.py
+CLAUDE.md
+.claude/project-profile.yaml
+.claude/skills/new-task/SKILL.md
+.claude/skills/workflow-router/SKILL.md
+.claude/skills/workflow-router/ROUTING.md
+.claude/skills/workflow-router/PLAYBOOKS.md
+```
+
+业务项目不包含 Python、Metrics、路由评测或模板 CI。
+
+## Setup
+
+1. 将分发包解压到项目根目录；已有 `CLAUDE.md` 时合并规则，不要直接覆盖项目约定。
+2. 填写 `.claude/project-profile.yaml` 中的真实验证命令、关键目录和交付能力。
+3. 安装 Superpowers、OpenSpec 和 Plannotator，并重启 Claude Code 让 plugins/skills/hooks 生效。
+4. 在项目中执行 `openspec init`，选择 Claude Code；以后升级 OpenSpec 后执行 `openspec update`。
+5. 使用 `/new-task <需求>`，后续模式和工具节点由 Router 自动处理。
+
+安装与行为细节见项目根目录的《AI Coding Workflow Template 详细使用说明》。
+
+## Maintainer validation
+
+以下命令只用于维护模板，不需要复制到业务项目：
+
+```text
+python scripts/validate_workflow.py
+python scripts/evaluate_routing.py
+python -m unittest discover -s tests -v
 python scripts/build_distribution.py
+python scripts/validate_workflow.py --archive ai-coding-workflow-template.zip
 ```
-
-验证脚本会检查评分基准、规则一致性和分发 manifest；CI 会构建并验证确定性 ZIP。
-
-## Key Files
-
-- `.claude/skills/workflow-router/SKILL.md`：路由主流程
-- `.claude/skills/workflow-router/v2/complexity-matrix.md`：评分锚点
-- `.claude/skills/workflow-router/v2/routing-rules.md`：语义红旗
-- `.claude/skills/workflow-router/v2/gates.md`：可组合门控目录
-- `.claude/skills/workflow-router/v2/toolcheck.md`：Capability Check
-- `.claude/project-profile.yaml`：项目画像
-- `.claude/skills/workflow-router/v2/metrics-schema.json`：Metrics Schema
-- `scripts/record_workflow_metric.py`：Metrics 校验与追加
-- `docs/superpowers/specs/2026-08-26-ai-coding-workflow-v2-design.md`：V2.1 设计
-
-评分阈值只是初始建议。至少积累项目画像配置的最小样本数后，再结合档位矩阵、升级信号、返工和 escaped defects 调整。
