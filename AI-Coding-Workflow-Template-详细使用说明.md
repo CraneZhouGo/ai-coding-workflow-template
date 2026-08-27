@@ -1,4 +1,4 @@
-# AI Coding Workflow Template V3.2.1 Composable 详细使用说明
+# AI Coding Workflow Template V3.2.2 Composable 详细使用说明
 
 ## 1. 设计目标
 
@@ -58,7 +58,7 @@ mode: standard
 specialized_gates: none
 workflow: Core Spine + Bug Method + Standard Safeguards
 resume: new
-human_gates: plan-review
+human_gates: spec-diff-review
 ```
 
 Route Card 是通知，不是审批。随后立即进入第一个节点。
@@ -92,9 +92,9 @@ Route Card 是通知，不是审批。随后立即进入第一个节点。
 
 Fast 必须证明需求明确、修改局部、消费者清楚、不改变公共边界/Schema/权限/关键语义、易回滚且可直接验证。它不创建 OpenSpec change，也没有预定人工 Gate。
 
-Standard 是普通修改默认模式，使用 OpenSpec 持久化并保留一次 Plannotator Plan Review。
+Standard 是普通修改默认模式，使用 OpenSpec 持久化并保留一次 OpenSpec Spec Diff Review。
 
-Governed 由关键业务语义、权限/敏感数据、Schema/回填、不兼容契约、共享基础设施、跨服务协调发布、缺少可信回滚等事实触发。在 Standard 之上增加高影响探索、隔离、完整验证和 Plannotator Code Review。
+Governed 由关键业务语义、权限/敏感数据、Schema/回填、不兼容契约、共享基础设施、跨服务协调发布、缺少可信回滚等事实触发。在 Standard 之上增加高影响探索、隔离、完整验证和 Plannotator Code Diff Review。
 
 ### 4.4 Specialized Gates：补专项证据
 
@@ -124,9 +124,9 @@ openspec apply                                   不存在的终端命令，禁�
 
 OpenSpec apply-change 负责读取 change、选择未完成 tasks 和更新任务状态；具体 debugging、TDD 和执行方法由 Superpowers 在该实施入口内部完成，不能再作为另一条并列实施流程重复执行。
 
-Plannotator 在 Standard/Governed 计划完整后触发一次 Plan Review；Governed 在实际 diff 和验证证据完成后再触发 Code Review。Plan Review Hook 只显示 ExitPlanMode 的 `tool_input.plan`，不会自动读取 OpenSpec 文件。
+Plannotator 不再通过 ExitPlanMode 接收手工拼装的计划文本。Standard/Governed 在 OpenSpec 规划完成后显式调用 `/plannotator-review`，直接用文件树和逐行 diff 展示当前 change 的 proposal、specs、design、tasks 和 workflow-state。
 
-因此进入 Plan Gate 前，Router 必须动态生成完整 Change Review Packet：先读取当前 change 下全部 `.md/.yaml/.yml/.json` 文件，再把文件清单、SHA-256 和每个文件的完整内容逐字嵌入 `tool_input.plan`。如果内容受宿主限制而无法完整提交，流程必须报告能力降级，不能只显示摘要。
+为确保页面只出现本次 OpenSpec 变化，Router 必须在写入规划文件前记录 Git review base。若工作区已有用户修改，则先创建隔离 worktree；进入 Gate 前再检查 tracked/untracked changed paths，全部路径必须位于 `openspec/changes/<change-id>/**`。若存在业务代码、其他 change 或无关文件，先隔离或修复，不能打开评审。Standard 默认只有这一次人工 Gate；Governed 在实现和验证完成后再次调用 `/plannotator-review`，执行 Code Diff Review。
 
 Integration Adapter Contract 会把 Superpowers 默认的逐段设计批准、独立设计/计划文件和 OpenSpec 的阶段停止合并到上述单一事实源和 Gate，但不会删减分析、调试、TDD、Review 与验证方法。
 
@@ -138,9 +138,9 @@ Standard/Governed 在 OpenSpec change 内创建：
 openspec/changes/<change-id>/workflow-state.yaml
 ```
 
-它只记录 intent、task type、mode、gates、current node、ordered nodes、状态、证据和 Plan Review 已批准稳定规划工件的 SHA-256，不复制 proposal/spec/design/tasks。workflow-state 自身会展示在 Review Packet 中，但不参与失效哈希，避免审批结果写回后让 Gate 自己失效。
+它只记录 intent、task type、mode、gates、current node、ordered nodes、状态、证据、Git review base 和 Spec Diff Review 已批准稳定规划工件的 SHA-256，不复制 proposal/spec/design/tasks。workflow-state 自身会出现在文件 diff 中，但不参与失效哈希，避免审批结果写回后让 Gate 自己失效。
 
-状态在以下时机更新：propose 获得 change id 后、每个节点完成后、人工 Gate 前后、重路由后和中断前。Plan Review 后任一 change 文档哈希变化都会使批准变为 stale，并重新提交全部文档评审。新对话或上下文压缩后，Router 匹配活动 change，从最早未完成 REQUIRED 节点继续。
+状态在以下时机更新：propose 获得 change id 后、每个节点完成后、人工 Gate 前后、重路由后和中断前。Spec Diff Review 后任一稳定规划工件哈希变化都会使 `spec_review.status` 变为 stale；实施前必须重新检查 diff 范围并再次打开 `/plannotator-review`。新对话或上下文压缩后，Router 匹配活动 change，从最早未完成 REQUIRED 节点继续。
 
 若同时有多个活动 change 且请求无法消歧，Router 才会询问要恢复哪一个。Fast 不创建 sidecar；升级 Standard 时再创建。
 
@@ -151,8 +151,8 @@ openspec/changes/<change-id>/workflow-state.yaml
 | 启动 `/new-task` 或描述需求 | 一次 |
 | Intent、Task Type、Mode、Gates 选择 | 不需要 |
 | Superpowers 与 OpenSpec 内部节点 | 不需要 |
-| Standard/Governed Plan Review | 需要在 Plannotator 批准或反馈 |
-| Governed Code Review | 需要在 Plannotator 批准或反馈 |
+| Standard/Governed OpenSpec Spec Diff Review | 需要在 `/plannotator-review` 批准或反馈 |
+| Governed Code Diff Review | 需要在 `/plannotator-review` 批准或反馈 |
 | Git 提交、推送、部署 | 需要明确授权 |
 
 真正影响结果且代码库无法回答的分歧、能力缺失导致降级、外部写入、秘密或破坏性动作也会暂停。Claude Code 自身权限弹窗属于宿主安全策略，不是工作流 Gate。
@@ -162,7 +162,7 @@ openspec/changes/<change-id>/workflow-state.yaml
 - 非 change 意图不加载修改链。
 - Fast 不创建持久规格，不扫描全库。
 - 任务类型只加载对应方法，不执行无关 brainstorming 或迁移步骤。
-- Standard 只维护一个 OpenSpec change 和一次计划评审。
+- Standard 只维护一个 OpenSpec change 和一次规格文件 diff 评审。
 - Governed 的高噪声调查可隔离给子代理，主上下文只保留证据摘要。
 - 专项风险通过 Gate 叠加，不复制完整模式流程。
 - 状态文件避免上下文中断后重复探索、重复确认和重复 Token。

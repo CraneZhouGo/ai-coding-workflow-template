@@ -1,4 +1,4 @@
-version: 3.2.1
+version: 3.2.2
 
 project:
   name: "replace-me"
@@ -31,8 +31,8 @@ workflow:
   default_mode: "standard"
   allow_fast_mode: true
   openspec_from: "standard"
-  plannotator_plan_review_from: "standard"
-  plannotator_code_review_from: "governed"
+  plannotator_spec_diff_review_from: "standard"
+  plannotator_code_diff_review_from: "governed"
 
 state:
   persist_from: "standard"

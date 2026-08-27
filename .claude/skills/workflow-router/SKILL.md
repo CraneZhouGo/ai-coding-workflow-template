@@ -4,7 +4,7 @@ description: 按 Intent、Task Type、Risk Mode 和 Specialized Gates 组合并�
 user-invocable: false
 ---
 
-# Workflow Router — V3.2.1 Composable
+# Workflow Router — V3.2.2 Composable
 
 本 skill 负责分类、组合、持久化和执行推进。它不把三种模式误当作三条固定业务流程。
 
@@ -40,7 +40,7 @@ user-invocable: false
 - 对应 Superpowers 原生 skills
 - Standard/Governed 的 OpenSpec Agent 入口：Claude Code `/opsx:apply` command 或 `openspec-apply-change` skill
 - OpenSpec CLI：`status`、`instructions apply`、`validate` 和 `archive`；不得把 `/opsx:apply` 误当作 `openspec apply` CLI
-- 当前模式需要的 Plannotator Hook/review
+- Standard/Governed 的 Plannotator `/plannotator-review`；不把 ExitPlanMode Plan Review Hook 用作预定 Gate
 - 项目验证命令和专项 Gate 所需验证能力
 
 能力可用就直接继续。缺失时先尝试无损恢复；只有替代方案降低保障才暂停。
@@ -53,7 +53,7 @@ user-invocable: false
 Core Spine + Task Method + Risk Safeguards + Specialized Gates
 ```
 
-相同语义节点只保留一次，以更严格的验证要求为准。Standard/Governed 在 OpenSpec propose 获得 change id 后立即创建 `openspec/changes/<change-id>/workflow-state.yaml`，并在每个节点边界更新。Planning 节点必须位于 Plan Review 前，任何写代码、写测试或执行 dry-run 的 Implementation 节点必须位于批准后。
+相同语义节点只保留一次，以更严格的验证要求为准。Standard/Governed 在任何规划写入前记录 Git baseline；已有未提交修改时先进入隔离 worktree。OpenSpec propose 获得 change id 后创建 `workflow-state.yaml`。Planning 节点必须位于 Spec Diff Review 前，任何写代码、写测试或执行 dry-run 的 Implementation 节点必须位于批准后。
 
 ## 6. Execute without gaps
 
@@ -65,7 +65,7 @@ node | source(core|method|mode|gate) | required | status(pending|in_progress|don
 
 - REQUIRED 节点必须显式调用相应原生 skill/command。
 - 不适用时写 `N/A + evidence`；任务方法不能因风险模式变化而被错误替换。
-- Plan Review 前生成完整 Change Review Packet 并通过 ExitPlanMode 的 `tool_input.plan` 提交；记录所有评审文件哈希，Gate 后哈希变化必须重新评审。
+- Spec Diff Review 前检查相对 baseline 的全部 changed/untracked paths；只有当前 `openspec/changes/<change-id>/**` 可出现。随后调用 `/plannotator-review` 直接展示文件 diff，并记录评审 base 与规划工件哈希；Gate 后哈希变化必须重新评审。
 - OpenSpec apply-change 是实施阶段外层入口，负责读取 change、选择未完成 tasks 和更新任务状态；Superpowers 方法在其内部负责 debugging、TDD、executing-plans 和 verification，不再作为第二个并列实施器重复执行。
 - 节点完成后自动持久化并进入下一节点，不询问许可。
 - OpenSpec 子工作流完成后返回 Router，不要求用户手动触发下一命令。

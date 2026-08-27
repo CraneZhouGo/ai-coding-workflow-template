@@ -1,5 +1,5 @@
 {
-  "version": "3.2.1-composable",
+  "version": "3.2.2-composable",
   "archive_name": "ai-coding-workflow-template.zip",
   "include": [
     ".claude/project-profile.yaml",

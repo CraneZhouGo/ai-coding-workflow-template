@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""校验 V3.2.1 可组合运行时及内容可复现的发行包。"""
+"""校验 V3.2.2 可组合运行时及内容可复现的发行包。"""
 
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ def validate_files(errors: list[str]) -> None:
 def validate_content(errors: list[str]) -> None:
     runtime = "\n".join((ROOT / path).read_text(encoding="utf-8") for path in sorted(RUNTIME_FILES))
     required_terms = (
-        "V3.2.1 Composable",
+        "V3.2.2 Composable",
         "Intent → Task Type → Risk Mode → Specialized Gates → Ordered Execution",
         "Core Spine + Task Method + Risk Safeguards + Specialized Gates",
         "Fast",
@@ -91,8 +91,13 @@ def validate_content(errors: list[str]) -> None:
         "/opsx:apply <change-id>",
         "openspec-apply-change",
         "openspec instructions apply --change <change-id> --json",
-        "Change Review Packet",
-        "tool_input.plan",
+        "OpenSpec Spec Diff Review",
+        "/plannotator-review",
+        "openspec/changes/<change-id>/**",
+        "capture-review-base",
+        "enforce-diff-scope",
+        "spec_review.status",
+        "review_base:",
         "SHA-256",
     )
     for term in required_terms:
@@ -109,6 +114,10 @@ def validate_content(errors: list[str]) -> None:
         "Standard state machine",
         "workspace-and-openspec:apply",
         "S-EX1 REQUIRED — superpowers:executing-plans",
+        "S-RP1 REQUIRED — complete-change-review-packet",
+        "P-RP4 REQUIRED — render-full-packet",
+        "S-HG1 HUMAN GATE — plannotator-plan-review",
+        "plan_review:",
     )
     for term in stale_terms:
         if term in runtime:
@@ -136,15 +145,16 @@ def validate_content(errors: list[str]) -> None:
         "M-UP1 REQUIRED — changelog-release-note-analysis",
         "M-MI1 REQUIRED — impact-and-rollback-plan",
         "M-MA1 REQUIRED — focused-exploration",
-        "S-HG1 HUMAN GATE — plannotator-plan-review",
-        "S-RP1 REQUIRED — complete-change-review-packet",
+        "S-WS0 REQUIRED — git-baseline-and-early-isolation",
+        "S-DF1 REQUIRED — openspec-diff-scope-check",
+        "S-HG1 HUMAN GATE — plannotator-spec-diff-review",
         "S-IM1 REQUIRED — openspec-implementation-entry",
-        "G-HG1 HUMAN GATE — plannotator-code-review",
+        "G-HG1 HUMAN GATE — plannotator-code-diff-review",
     ):
         if node not in playbooks:
             errors.append(f"composable orchestration node missing: {node}")
 
-    if "Standard：只有 1 个预定人工 Gate" not in playbooks:
+    if "Standard：只有 1 个预定人工 Gate，即 OpenSpec Spec Diff Review" not in playbooks:
         errors.append("Standard must declare exactly one planned human gate")
     standard = playbooks.split("### Standard safeguards", 1)[-1].split("### Governed safeguards", 1)[0]
     if standard.count("HUMAN GATE") != 1:
@@ -157,7 +167,8 @@ def validate_content(errors: list[str]) -> None:
         "pending | in_progress | done | N/A | blocked",
         "done 节点不重复",
         "openspec validate <change-id>",
-        "plan_review.status",
+        "review_base:",
+        "spec_review.status",
         "sha256:",
         "status completed → `openspec archive <change-id>`",
     )
@@ -166,13 +177,13 @@ def validate_content(errors: list[str]) -> None:
             errors.append(f"durable state contract missing: {term}")
 
     profile = (ROOT / ".claude/project-profile.yaml").read_text(encoding="utf-8")
-    if re.search(r"^version:\s*3\.2\.1\s*$", profile, re.MULTILINE) is None:
-        errors.append("project profile version must be 3.2.1")
+    if re.search(r"^version:\s*3\.2\.2\s*$", profile, re.MULTILINE) is None:
+        errors.append("project profile version must be 3.2.2")
     for key in (
         "allow_fast_mode",
         "openspec_from",
-        "plannotator_plan_review_from",
-        "plannotator_code_review_from",
+        "plannotator_spec_diff_review_from",
+        "plannotator_code_diff_review_from",
         "persist_from",
         "file_name",
         "resume_incomplete",
@@ -205,8 +216,8 @@ def validate_references(errors: list[str]) -> None:
 
 def validate_manifest(errors: list[str], archive_path: Path | None) -> None:
     manifest = json.loads((ROOT / "distribution-manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("version") != "3.2.1-composable":
-        errors.append("distribution version must be 3.2.1-composable")
+    if manifest.get("version") != "3.2.2-composable":
+        errors.append("distribution version must be 3.2.2-composable")
     included = set(manifest.get("include", []))
     if included != RUNTIME_FILES:
         errors.append("distribution must contain exactly the six Composable runtime files")
@@ -241,7 +252,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}")
         return 1
-    print("V3.2.1 Composable workflow validation passed")
+    print("V3.2.2 Composable workflow validation passed")
     return 0
 
 

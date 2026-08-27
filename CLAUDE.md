@@ -1,4 +1,4 @@
-# AI Coding Workflow Constitution — V3.2.1 Composable
+# AI Coding Workflow Constitution — V3.2.2 Composable
 
 ## Purpose
 
@@ -46,9 +46,9 @@ Core Spine + Task Method + Risk Safeguards + Specialized Gates
 8. Superpowers 管方法，OpenSpec 管持久化需求与流程状态，Plannotator 管人类决策，Claude Code 管执行；不得复制长期产物。
 9. 按 `PLAYBOOKS.md` 的 Integration Adapter Contract 整合工具：保留原生方法，但重复审批、独立设计/计划文件和自动提交由 Plannotator Gate、OpenSpec 单一事实源和本项目授权边界替代。
 10. OpenSpec 实施入口必须调用宿主生成的 `/opsx:apply <change-id>` 或 `openspec-apply-change` skill；终端不存在 `openspec apply`。只有原生入口不可用时，才使用 `openspec instructions apply --change <change-id> --json` 获取官方实施指令。
-11. Plannotator Plan Review 只接收 ExitPlanMode 的 `tool_input.plan`。进入 Gate 前必须动态装配完整 Change Review Packet，逐字包含当前 change 的全部评审文档、文件清单与 SHA-256；不得只提交摘要。
+11. Standard/Governed 的规划 Gate 使用 `/plannotator-review` 打开 OpenSpec Spec Diff Review，直接展示当前 change 的新增/修改文件；禁止通过 ExitPlanMode 手动拼接全文。Gate 前必须确认工作区 diff 只包含 `openspec/changes/<change-id>/**`，否则先隔离或消除无关变化。
 12. 子 skill/command 的 `stop`、`ready for next` 或完成消息只把控制权交还 Router；Router 自动持久化状态并调用下一节点。
-13. Standard/Governed 在 `openspec/changes/<change-id>/workflow-state.yaml` 保存节点账本和已评审稳定规划工件哈希；新回合优先恢复最早未完成 REQUIRED 节点，不重复已完成节点。Gate 后规划工件哈希变化会使批准失效并重新评审；workflow-state 自身只作为 context-only 展示，避免状态更新导致自失效。
+13. Standard/Governed 在 `openspec/changes/<change-id>/workflow-state.yaml` 保存节点账本、Git review base 和已评审规划工件哈希；新回合优先恢复最早未完成 REQUIRED 节点。Spec Diff Review 后规划工件哈希变化会使批准失效并重新打开文件 diff。
 14. 探索完成、发现公共契约/数据/权限/关键语义变化、diff 扩大和交付前重新路由；升级不需要确认。
 15. 子代理用于隔离高噪声探索；只有低耦合且可独立验证的任务才并行。
 16. 完成声明必须附实际验证、规格与状态文件结果、Review 结果、未验证项和剩余风险。必须先 validate/review 通过，再将状态设为 completed，最后 archive。

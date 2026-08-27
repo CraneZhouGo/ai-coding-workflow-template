@@ -35,7 +35,7 @@ EXPECTED_RUNTIME = {
 class DistributionTests(unittest.TestCase):
     def test_distribution_version_is_patch_release(self) -> None:
         manifest = json.loads((ROOT / "distribution-manifest.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"], "3.2.1-composable")
+        self.assertEqual(manifest["version"], "3.2.2-composable")
 
     def test_distribution_is_deterministic(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -128,16 +128,16 @@ class WorkflowContractTests(unittest.TestCase):
     def test_standard_feature_includes_brainstorming(self) -> None:
         example = self.playbook.split("### Standard Feature", 1)[1].split("### Standard Bug", 1)[0]
         self.assertIn("brainstorming", example)
-        self.assertIn("Plan Review", example)
+        self.assertIn("OpenSpec Spec Diff Review", example)
 
     def test_standard_bug_uses_debugging_before_regression_test(self) -> None:
         example = self.playbook.split("### Standard Bug", 1)[1].split("### Governed Migration", 1)[0]
         self.assertLess(example.index("systematic-debugging"), example.index("failing-regression-test"))
-        self.assertLess(example.index("Plan Review"), example.index("failing-regression-test"))
+        self.assertLess(example.index("Spec Diff Review"), example.index("failing-regression-test"))
 
-    def test_governed_migration_runs_dry_run_after_plan_review(self) -> None:
+    def test_governed_migration_runs_dry_run_after_spec_diff_review(self) -> None:
         example = self.playbook.split("### Governed Migration", 1)[1].split("## Durable workflow state", 1)[0]
-        self.assertLess(example.index("Plan Review"), example.index("dry-run"))
+        self.assertLess(example.index("Spec Diff Review"), example.index("dry-run"))
 
     def test_openspec_apply_uses_real_agent_entry(self) -> None:
         for term in (
@@ -150,25 +150,26 @@ class WorkflowContractTests(unittest.TestCase):
             self.assertIn(term, self.playbook)
         self.assertNotIn("S-EX1 REQUIRED — superpowers:executing-plans", self.playbook)
 
-    def test_plan_review_packet_contains_all_change_documents(self) -> None:
+    def test_spec_diff_review_uses_vcs_files_without_manual_packet(self) -> None:
         for term in (
-            "Change Review Packet contract",
+            "OpenSpec Spec Diff Review contract",
             "openspec status --change <change-id> --json",
-            "P-RP3 REQUIRED — hash-artifacts",
-            "P-RP4 REQUIRED — render-full-packet",
-            "tool_input.plan",
-            "每个文件完整内容",
-            "不得摘要或截断",
-            "context-only",
-            "避免 Gate 状态更新使其自失效",
+            "P-SD1 REQUIRED — capture-review-base",
+            "P-SD3 REQUIRED — enforce-diff-scope",
+            "openspec/changes/<change-id>/**",
+            "/plannotator-review",
+            "禁止创建额外 Review Packet",
+            "workflow-state 自身不参与失效哈希",
         ):
             self.assertIn(term, self.playbook)
+        self.assertNotIn("P-RP4 REQUIRED — render-full-packet", self.playbook)
+        self.assertNotIn("S-RP1 REQUIRED — complete-change-review-packet", self.playbook)
 
-    def test_standard_packet_gate_and_apply_are_ordered(self) -> None:
+    def test_standard_diff_scope_gate_and_apply_are_ordered(self) -> None:
         example = self.playbook.split("### Standard Feature", 1)[1].split("### Standard Bug", 1)[0]
         positions = [
-            example.index("full Change Review Packet"),
-            example.index("Plannotator Plan Review"),
+            example.index("only openspec/changes/<change-id>/** changed"),
+            example.index("OpenSpec Spec Diff Review"),
             example.index("/opsx:apply"),
         ]
         self.assertEqual(positions, sorted(positions))
@@ -191,7 +192,8 @@ class WorkflowContractTests(unittest.TestCase):
             "status: active",
             "最早的 pending/in_progress/blocked REQUIRED 节点继续",
             "done 节点不重复",
-            "plan_review.status",
+            "review_base:",
+            "spec_review.status",
             "sha256:",
             "status completed → `openspec archive <change-id>`",
         ):
@@ -205,8 +207,20 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_integration_adapter_consolidates_duplicate_gates(self) -> None:
         self.assertIn("brainstorming 默认的逐段设计批准", self.playbook)
-        self.assertIn("统一合并到当前工作流唯一一次 Plannotator Plan Review", self.playbook)
+        self.assertIn("统一合并到当前工作流唯一一次 OpenSpec Spec Diff Review", self.playbook)
         self.assertIn("只表示返回父 Router", self.playbook)
+
+    def test_standard_has_no_final_human_code_diff_gate(self) -> None:
+        standard = self.playbook.split("### Standard safeguards", 1)[1].split("### Governed safeguards", 1)[0]
+        self.assertIn("Standard 默认不打开第二个人工 diff Gate", standard)
+        self.assertNotIn("plannotator-code-diff-review", standard)
+
+    def test_governed_adds_code_diff_review_after_verification(self) -> None:
+        governed = self.playbook.split("### Governed safeguards", 1)[1].split("## Specialized Gate modules", 1)[0]
+        self.assertLess(
+            governed.index("G-RV1 REQUIRED — full-verification-and-review"),
+            governed.index("G-HG1 HUMAN GATE — plannotator-code-diff-review"),
+        )
 
 
 if __name__ == "__main__":
