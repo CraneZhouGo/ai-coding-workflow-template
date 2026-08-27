@@ -65,7 +65,7 @@
 | S0 需求治理 | 澄清 Goal/Scope/Non-goals/AC/Constraints | 需求说明 | 需求评审 | Superpowers(brainstorming) + Claude Code |
 | S1 规格化 | 行为规格（Given/When/Then） | proposal.md + specs/ | 规格评审 | OpenSpec + Claude Code |
 | S2 架构设计 | 方案对比、ADR、数据/契约设计 | design.md + ADR | 架构评审 | Superpowers(brainstorming) + OpenSpec |
-| S3 计划 | 任务清单、依赖、测试策略 | tasks.md | **Plannotator Plan Review** | Superpowers(writing-plans) + OpenSpec |
+| S3 计划 | 任务清单、依赖、测试策略；R4 启用多 Agent 前必做 **DAG 拆分**（拓扑分层/关键路径/收敛点） | tasks.md | **Plannotator Plan Review** | Superpowers(writing-plans) + OpenSpec |
 | S4 实施 | TDD 编码 | 代码 + 测试 | — | Claude Code + Superpowers(TDD/executing) |
 | S5 验证 | 多层测试 + 变更完整性 | 测试报告 + openspec status | 验证评审 | Claude Code + OpenSpec(verify) |
 | S6 代码评审 | 逐变更评审 | 评审记录 | **Plannotator Code Review** | Plannotator + Superpowers(review) |
@@ -184,7 +184,7 @@ final_tier = max(level_from(weighted_score), level_from(mandatory_rules), level_
 | S0 需求 | 简化(Goal+Scope) | ✓ AC/约束 | ✓ Non-goals | ✓ 完整 |
 | S1 规格 | — | proposal+specs | ✓ | ✓ 完整 delta |
 | S2 设计 | — | 设计记录 | design.md | design.md+ADR |
-| S3 计划 | 终端计划确认 | tasks.md | ✓ 详细 | ✓ WBS+依赖 |
+| S3 计划 | 终端计划确认 | tasks.md | ✓ 详细 | ✓ WBS+DAG拆分 |
 | Plan Review | 终端确认 | Plannotator | Plannotator | Plannotator |
 | S4 实施 | ✓ 最小改动 | TDD | TDD | TDD+多Agent |
 | S5 验证 | 相关测试+diff | 单元+构建 | +集成+契约 | +迁移+专项 |
