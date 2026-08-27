@@ -28,5 +28,7 @@ human_gates: none | plan-review | plan-review+code-review
 4. 非 `change` 意图进入只读分支并直接完成；`diagnose-only` 只能给根因与证据，`plan-only` 只能给计划，均不得修改项目。
 5. `change` 在同一响应中立即进入第一个未完成节点。禁止询问“是否继续”“是否采用该模式”或逐节点确认。
 6. 按组合后的有序工作流连续执行；只有 `CLAUDE.md` Autonomy Contract 列出的情况可以暂停。
-7. Standard/Governed 每完成节点、进入或退出人工 Gate 时更新 OpenSpec change 内的 `workflow-state.yaml`；面向用户只汇报关键进展。
-8. 最终按 Completion Report 汇报，并将状态标为 completed 后 archive 当前 change。
+7. Standard/Governed 在 Plan Review 前动态读取当前 change 的全部评审文档，将完整内容、路径和 SHA-256 装配进 ExitPlanMode 的 `tool_input.plan`；Plannotator 批准后记录已评审哈希。不得只提交摘要或假设 Plannotator 会自动读取文件。
+8. 实施阶段调用 `/opsx:apply <change-id>` 或 `openspec-apply-change` skill；不得尝试不存在的终端命令 `openspec apply`。原生入口不可用时，使用 `openspec instructions apply --change <change-id> --json` 获取官方指令。
+9. Standard/Governed 每完成节点、进入或退出人工 Gate 时更新 OpenSpec change 内的 `workflow-state.yaml`；面向用户只汇报关键进展。
+10. 最终先完成验证、Review 和 `openspec validate <change-id>`，再将状态标为 completed，随后 archive 当前 change，并按 Completion Report 汇报。

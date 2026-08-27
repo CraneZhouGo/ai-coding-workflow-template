@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""运行 V3.2 可组合路由器的维护校准案例。"""
+"""运行 V3.2.1 可组合路由器的维护校准案例。"""
 
 from __future__ import annotations
 

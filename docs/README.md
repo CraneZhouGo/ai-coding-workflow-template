@@ -1,4 +1,4 @@
-# AI Coding Workflow Template V3.2 Composable
+# AI Coding Workflow Template V3.2.1 Composable
 
 这是一个面向 Claude Code 的薄编排模板。它不重新实现 Superpowers、OpenSpec 或 Plannotator，而是先识别意图，再把任务方法、风险保障和专项 Gate 自动组合成一次任务真正需要的流程。
 
@@ -34,7 +34,7 @@ Final workflow
 | 模式 | 准入与保障 | OpenSpec | Plannotator |
 |---|---|---|---|
 | Fast | 全部低风险条件成立；最窄探索和直接验证 | 不创建新 change | 无预定 Gate |
-| Standard | 普通修改的默认安全网 | propose/apply/validate/archive + workflow-state | 一次 Plan Review |
+| Standard | 普通修改的默认安全网 | Agent propose/apply-change + CLI validate/archive + workflow-state | 一次完整 Change Review |
 | Governed | 高风险事实触发；完整交付证据与隔离 | explore + Standard 生命周期与状态 | Plan + Code Review |
 
 模式不再规定固定业务节点。Standard Feature 和 Standard Bug 共享相同保障，但使用不同 Task Method。专项 Gate 可叠加，不需要新增第四种模式。
@@ -49,16 +49,27 @@ Standard/Governed 会在当前 OpenSpec change 内维护：
 openspec/changes/<change-id>/workflow-state.yaml
 ```
 
-它记录 intent、task type、mode、gates、ordered nodes、状态和证据。对话中断或压缩后，Router 从最早未完成 REQUIRED 节点继续，不重复已完成步骤。
+它记录 intent、task type、mode、gates、ordered nodes、状态、证据和 Plan Review 已批准稳定规划工件的 SHA-256。对话中断或压缩后，Router 从最早未完成 REQUIRED 节点继续；已评审规划工件变化时自动重新进入 Plan Review。`workflow-state.yaml` 会完整展示，但不参与失效哈希，避免审批结果写回后自失效。
 
 ## Tool ownership
 
 - Superpowers：提供 brainstorming、systematic-debugging、planning、TDD、review、verification 等方法。
-- OpenSpec：保存 Standard/Governed 的规格、任务与编排状态。
-- Plannotator：承载计划和代码的人类决策 Gate。
+- OpenSpec：保存规格、任务与编排状态；`/opsx:apply` 或 `openspec-apply-change` 是 Agent 实施入口，不是终端 CLI。
+- Plannotator：承载计划和代码的人类决策 Gate；Plan Review 只展示 ExitPlanMode 的 `tool_input.plan`。
 - Claude Code：执行探索、编辑、命令、测试、Git 与工具交接。
 
 Integration Adapter Contract 会合并工具默认流程中的重复批准和重复文档；OpenSpec 子流程的 stop/ready 只返回 Router，后续节点自动继续。
+
+Plan Gate 前，Router 会把当前 change 的全部 `.md/.yaml/.yml/.json` 文档、文件清单和 SHA-256 动态装配成完整 Change Review Packet，再交给 Plannotator。页面不会被假设为自动扫描 OpenSpec 目录。
+
+OpenSpec 入口严格区分：
+
+```text
+/opsx:apply <change-id>                         # Claude Code Agent command
+openspec-apply-change                           # 生成的 Agent skill
+openspec instructions apply --change <id> --json # 官方 CLI fallback
+openspec apply                                  # 不存在，禁止调用
+```
 
 ## Business package
 

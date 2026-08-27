@@ -1,4 +1,4 @@
-# AI Coding Workflow Template V3.2 Composable 详细使用说明
+# AI Coding Workflow Template V3.2.1 Composable 详细使用说明
 
 ## 1. 设计目标
 
@@ -111,9 +111,22 @@ Gate 可以叠加，不增加新模式。例如数据库迁移通常是 `Migrati
 
 Superpowers 只在对应方法节点调用原生 skill。Feature 必须 brainstorming；Bug 必须 systematic-debugging；生产行为变化执行 TDD；完成前执行 verification 和 review。
 
-OpenSpec 从 Standard 开始使用 propose/apply/validate/archive，Governed 可先 explore。各 OPSX 子流程的 stop/ready 只把控制权交还 Router，用户不需要手动输入下一条命令。
+OpenSpec 从 Standard 开始使用 propose、Agent apply-change、CLI validate/archive，Governed 可先 explore。各 OPSX 子流程的 stop/ready 只把控制权交还 Router。
 
-Plannotator 在 Standard/Governed 计划完整后触发一次 Plan Review；Governed 在实际 diff 和验证证据完成后再触发 Code Review。
+需要严格区分：
+
+```text
+/opsx:apply <change-id>                          Claude Code 中的 Agent 命令
+openspec-apply-change                            OpenSpec 生成的 Agent skill
+openspec instructions apply --change <id> --json 原生入口不可用时的 CLI fallback
+openspec apply                                   不存在的终端命令，禁止调用
+```
+
+OpenSpec apply-change 负责读取 change、选择未完成 tasks 和更新任务状态；具体 debugging、TDD 和执行方法由 Superpowers 在该实施入口内部完成，不能再作为另一条并列实施流程重复执行。
+
+Plannotator 在 Standard/Governed 计划完整后触发一次 Plan Review；Governed 在实际 diff 和验证证据完成后再触发 Code Review。Plan Review Hook 只显示 ExitPlanMode 的 `tool_input.plan`，不会自动读取 OpenSpec 文件。
+
+因此进入 Plan Gate 前，Router 必须动态生成完整 Change Review Packet：先读取当前 change 下全部 `.md/.yaml/.yml/.json` 文件，再把文件清单、SHA-256 和每个文件的完整内容逐字嵌入 `tool_input.plan`。如果内容受宿主限制而无法完整提交，流程必须报告能力降级，不能只显示摘要。
 
 Integration Adapter Contract 会把 Superpowers 默认的逐段设计批准、独立设计/计划文件和 OpenSpec 的阶段停止合并到上述单一事实源和 Gate，但不会删减分析、调试、TDD、Review 与验证方法。
 
@@ -125,9 +138,9 @@ Standard/Governed 在 OpenSpec change 内创建：
 openspec/changes/<change-id>/workflow-state.yaml
 ```
 
-它只记录 intent、task type、mode、gates、current node、ordered nodes、状态和证据，不复制 proposal/spec/design/tasks。
+它只记录 intent、task type、mode、gates、current node、ordered nodes、状态、证据和 Plan Review 已批准稳定规划工件的 SHA-256，不复制 proposal/spec/design/tasks。workflow-state 自身会展示在 Review Packet 中，但不参与失效哈希，避免审批结果写回后让 Gate 自己失效。
 
-状态在以下时机更新：propose 获得 change id 后、每个节点完成后、人工 Gate 前后、重路由后和中断前。新对话或上下文压缩后，Router 匹配活动 change，从最早未完成 REQUIRED 节点继续，已完成节点不会重复。
+状态在以下时机更新：propose 获得 change id 后、每个节点完成后、人工 Gate 前后、重路由后和中断前。Plan Review 后任一 change 文档哈希变化都会使批准变为 stale，并重新提交全部文档评审。新对话或上下文压缩后，Router 匹配活动 change，从最早未完成 REQUIRED 节点继续。
 
 若同时有多个活动 change 且请求无法消歧，Router 才会询问要恢复哪一个。Fast 不创建 sidecar；升级 Standard 时再创建。
 
@@ -158,7 +171,7 @@ openspec/changes/<change-id>/workflow-state.yaml
 
 Superpowers、OpenSpec 或 Plannotator 缺失时先尝试恢复；若替代方案降低保障才请求决定。关键测试环境不可用会使 Fast 失效，高风险验证缺失可升级 Governed。
 
-任务完成时应看到：intent、task type、初始/最终 mode、gates、实际 ordered workflow、节点状态、工具调用、测试与规格校验、评审结果、未验证项和剩余风险。Standard/Governed 还必须先将状态标记 completed，再 validate 和 archive。
+任务完成时应看到：intent、task type、初始/最终 mode、gates、实际 ordered workflow、节点状态、工具调用、测试与规格校验、评审结果、未验证项和剩余风险。Standard/Governed 的完成顺序固定为：项目验证与 Review → `openspec validate <change-id>` → 状态 completed → archive。
 
 ## 10. 维护脚本
 

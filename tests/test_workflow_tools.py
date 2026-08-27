@@ -33,6 +33,10 @@ EXPECTED_RUNTIME = {
 
 
 class DistributionTests(unittest.TestCase):
+    def test_distribution_version_is_patch_release(self) -> None:
+        manifest = json.loads((ROOT / "distribution-manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["version"], "3.2.1-composable")
+
     def test_distribution_is_deterministic(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             first = Path(directory) / "first.zip"
@@ -129,7 +133,50 @@ class WorkflowContractTests(unittest.TestCase):
     def test_standard_bug_uses_debugging_before_regression_test(self) -> None:
         example = self.playbook.split("### Standard Bug", 1)[1].split("### Governed Migration", 1)[0]
         self.assertLess(example.index("systematic-debugging"), example.index("failing-regression-test"))
-        self.assertIn("不无条件执行 brainstorming", example)
+        self.assertLess(example.index("Plan Review"), example.index("failing-regression-test"))
+
+    def test_governed_migration_runs_dry_run_after_plan_review(self) -> None:
+        example = self.playbook.split("### Governed Migration", 1)[1].split("## Durable workflow state", 1)[0]
+        self.assertLess(example.index("Plan Review"), example.index("dry-run"))
+
+    def test_openspec_apply_uses_real_agent_entry(self) -> None:
+        for term in (
+            "/opsx:apply <change-id>",
+            "openspec-apply-change",
+            "openspec instructions apply --change <change-id> --json",
+            "终端命令 `openspec apply` 不存在",
+            "S-IM1 REQUIRED — openspec-implementation-entry",
+        ):
+            self.assertIn(term, self.playbook)
+        self.assertNotIn("S-EX1 REQUIRED — superpowers:executing-plans", self.playbook)
+
+    def test_plan_review_packet_contains_all_change_documents(self) -> None:
+        for term in (
+            "Change Review Packet contract",
+            "openspec status --change <change-id> --json",
+            "P-RP3 REQUIRED — hash-artifacts",
+            "P-RP4 REQUIRED — render-full-packet",
+            "tool_input.plan",
+            "每个文件完整内容",
+            "不得摘要或截断",
+            "context-only",
+            "避免 Gate 状态更新使其自失效",
+        ):
+            self.assertIn(term, self.playbook)
+
+    def test_standard_packet_gate_and_apply_are_ordered(self) -> None:
+        example = self.playbook.split("### Standard Feature", 1)[1].split("### Standard Bug", 1)[0]
+        positions = [
+            example.index("full Change Review Packet"),
+            example.index("Plannotator Plan Review"),
+            example.index("/opsx:apply"),
+        ]
+        self.assertEqual(positions, sorted(positions))
+
+    def test_completion_validates_before_completed_and_archive(self) -> None:
+        contract = self.playbook.split("## Durable workflow state contract", 1)[1]
+        sequence = "`openspec validate <change-id>` → status completed → `openspec archive <change-id>`"
+        self.assertIn(sequence, contract)
 
     def test_standard_has_one_planned_human_gate(self) -> None:
         self.assertIn("Standard：只有 1 个预定人工 Gate", self.playbook)
@@ -144,6 +191,9 @@ class WorkflowContractTests(unittest.TestCase):
             "status: active",
             "最早的 pending/in_progress/blocked REQUIRED 节点继续",
             "done 节点不重复",
+            "plan_review.status",
+            "sha256:",
+            "status completed → `openspec archive <change-id>`",
         ):
             self.assertIn(term, self.playbook)
 
@@ -156,7 +206,7 @@ class WorkflowContractTests(unittest.TestCase):
     def test_integration_adapter_consolidates_duplicate_gates(self) -> None:
         self.assertIn("brainstorming 默认的逐段设计批准", self.playbook)
         self.assertIn("统一合并到当前工作流唯一一次 Plannotator Plan Review", self.playbook)
-        self.assertIn("不得要求用户手动输入下一条 OPSX 命令", self.playbook)
+        self.assertIn("只表示返回父 Router", self.playbook)
 
 
 if __name__ == "__main__":
