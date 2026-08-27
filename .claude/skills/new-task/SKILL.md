@@ -1,25 +1,32 @@
 ---
 name: new-task
-description: 统一启动一个编码任务，自动选择 Fast、Standard 或 Governed 工作流并执行。用户描述新需求、修复、重构或调用 /new-task 时使用。
+description: 识别意图并连续处理一个开发请求；修改类请求自动组合任务方法、Fast/Standard/Governed 保障和专项 Gate。只在计划内人工 Gate、真实分歧、能力降级或外部/破坏性动作前暂停。
 argument-hint: "<需求>"
 disable-model-invocation: true
 ---
 
 # New Task
 
-处理 `$ARGUMENTS`；如果参数为空，则以用户当前消息作为需求。
+处理 `$ARGUMENTS`；参数为空时使用用户当前需求。
 
-1. 读取项目根目录的 `CLAUDE.md` 和 `.claude/project-profile.yaml`。
-2. 加载 `workflow-router` skill，由它完成证据探索、模式选择、工具检查、执行和重新评估。
-3. 在修改前只输出一份简短 Route Card：
+调用本 skill 即授权当前项目内的读取、修改、非破坏性命令、构建、测试和当前 OpenSpec change 的本地生命周期。它不授权提交、推送、部署、秘密访问或破坏性动作。
+
+1. 读取 `CLAUDE.md` 和 `.claude/project-profile.yaml`。
+2. 显式加载 `workflow-router` skill；先查找可恢复的 `workflow-state.yaml`，再对新请求分类。
+3. 输出 Route Card；它是状态通知，不是审批请求：
 
 ```text
-mode: fast | standard | governed
-why: 1-3 条代码库或需求证据
-durable_spec: none | openspec
-human_gates: none | plan | plan+code
-next: 紧接着执行的动作
+intent: explain | review | diagnose-only | plan-only | change
+task_type: feature | bug | refactor | upgrade-config | migration-infrastructure | maintenance | N/A
+mode: fast | standard | governed | N/A
+specialized_gates: data | security | contract | infrastructure | release | observability | none
+workflow: Core Spine + 实际 Task Method + 实际 Risk Safeguards + 实际 Specialized Gates
+resume: new | <change-id>:<next-node>
+human_gates: none | plan-review | plan-review+code-review
 ```
 
-4. 除非存在需要用户决策的真实分歧，否则直接继续，不让用户再次选择模式或确认路由。
-5. 最终按 `CLAUDE.md` 的 Completion Report 汇报。
+4. 非 `change` 意图进入只读分支并直接完成；`diagnose-only` 只能给根因与证据，`plan-only` 只能给计划，均不得修改项目。
+5. `change` 在同一响应中立即进入第一个未完成节点。禁止询问“是否继续”“是否采用该模式”或逐节点确认。
+6. 按组合后的有序工作流连续执行；只有 `CLAUDE.md` Autonomy Contract 列出的情况可以暂停。
+7. Standard/Governed 每完成节点、进入或退出人工 Gate 时更新 OpenSpec change 内的 `workflow-state.yaml`；面向用户只汇报关键进展。
+8. 最终按 Completion Report 汇报，并将状态标为 completed 后 archive 当前 change。

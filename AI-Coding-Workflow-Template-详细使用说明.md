@@ -1,161 +1,170 @@
-# AI Coding Workflow Template V3 Adaptive 详细使用说明
+# AI Coding Workflow Template V3.2 Composable 详细使用说明
 
 ## 1. 设计目标
 
-这套模板解决的不是“让 AI 多走几步”，而是让保障强度与需求风险匹配：小任务避免规格和评审开销，普通功能保留意图与计划，高风险变更得到完整的人类关卡和交付证据。
+这套模板在“Token 消耗”和“实现保障”之间按任务实际需要取平衡。它不再让三种风险模式各自维护一条越来越长的固定流程，而是自动组合：
 
-它是编排层，不是第四套开发方法论：
+```text
+Core Spine + Task Method + Risk Safeguards + Specialized Gates
+```
 
-- Superpowers 决定怎样分析、计划、测试、调试和验证。
-- OpenSpec 保存需求、变更和任务状态。
-- Plannotator 承载需要人决定的计划与代码评审。
-- Claude Code 执行探索、修改、命令和编排。
+- Superpowers 提供分析、设计、调试、测试、评审和验证方法。
+- OpenSpec 保存 Standard/Governed 的规格、任务和工作流状态。
+- Plannotator 承载真正需要人决定的计划与代码评审。
+- Claude Code 执行探索、修改、命令和工具编排。
 
-## 2. 使用前准备
+## 2. 安装与项目画像
 
-### 2.1 合并模板
+将 `ai-coding-workflow-template.zip` 解压到业务项目根目录。已有 `CLAUDE.md` 或 `.claude/` 时，保留项目原有构建、风格和安全约定，再合并本模板规则，不覆盖工具自动生成的文件。
 
-将 `ai-coding-workflow-template.zip` 解压到业务项目根目录。
-
-如果项目已有 `CLAUDE.md` 或 `.claude/`：
-
-1. 保留项目已有的构建、风格、安全和目录约定。
-2. 合并本模板的 Stable Rules 与两个 skills。
-3. 不覆盖 OpenSpec、Superpowers 或 Plannotator 自动生成的文件。
-
-### 2.2 安装三项能力
-
-在 Claude Code 中安装 Superpowers：
+安装 Superpowers：
 
 ```text
 /plugin install superpowers@claude-plugins-official
 ```
 
-在终端安装并初始化 OpenSpec：
+安装和初始化 OpenSpec：
 
 ```text
 npm install -g @fission-ai/openspec@latest
 openspec init
 ```
 
-初始化时选择 Claude Code。OpenSpec 升级后运行 `openspec update`，让其重新生成当前版本的 skills/commands。
+初始化时选择 Claude Code。升级后执行 `openspec update`。
 
-在 Claude Code 中安装 Plannotator：
+安装 Plannotator：
 
 ```text
 /plugin marketplace add backnotprop/plannotator
 /plugin install plannotator@plannotator
 ```
 
-安装插件后重启 Claude Code，使 skills 和 hooks 生效。
+安装插件后重启 Claude Code。然后编辑 `.claude/project-profile.yaml`，填写真实验证命令、公共契约/迁移/共享基础设施位置，以及回滚、观测和发布能力。
 
-### 2.3 填写项目画像
+## 3. 日常入口与 Route Card
 
-编辑 `.claude/project-profile.yaml`：
-
-- `validation`：填入项目真实的构建、单元、集成、契约和静态检查命令。
-- `risk.critical_domains`：列出项目不可低估的业务语义。
-- `public_contract_locations`：填写 API、事件或 SDK 契约目录。
-- `migration_locations`：填写数据库迁移与数据脚本目录。
-- `shared_infrastructure_locations`：填写共享 CI、网关、鉴权或平台配置位置。
-- `delivery`：说明回滚、观测和发布方式。
-
-Profile 只保存项目事实。不要把路由规则复制进去，否则多处维护会产生漂移。
-
-## 3. 日常使用
-
-推荐入口：
+推荐只启动一次：
 
 ```text
-/new-task 为订单列表增加按科室筛选
+/new-task 修复订单重复提交问题
 ```
 
-也可以直接描述需求；Router skill 的描述覆盖新功能、Bug、重构、迁移和基础设施变更时，Claude Code 可以自动加载它。
-
-你不需要手动选择模式。Router 会先给出简短 Route Card，然后继续执行：
+Router 输出类似：
 
 ```text
+intent: change
+task_type: bug
 mode: standard
-why: 新增用户行为；涉及 API 与页面；无 Schema/权限变化
-durable_spec: openspec
-human_gates: plan
-next: 创建 OpenSpec change 并准备计划评审
+specialized_gates: none
+workflow: Core Spine + Bug Method + Standard Safeguards
+resume: new
+human_gates: plan-review
 ```
 
-只有出现真正的产品/架构分歧、工具缺失导致保障降级，或外部授权动作时，流程才会停下来询问。
+Route Card 是通知，不是审批。随后立即进入第一个节点。
 
-## 4. 三种模式如何选择
+## 4. 四层自动路由
 
-### Fast
+### 4.1 Intent：先判断授权
 
-必须同时满足：需求明确、修改局部、消费者清楚、不碰公共契约/Schema/安全边界/关键业务语义、容易回滚、存在直接验证、无需设计取舍。
+- explain：理解或解释，只读。
+- review：评审代码、计划或 diff，只读。
+- diagnose-only：定位问题，可运行诊断和测试，但不修复。
+- plan-only：只制定方案，不实施。
+- change：明确要求新增、修复、重构、升级、迁移或修改。
 
-流程：定向探索 → 适用的 Superpowers debugging/TDD → 最小修改 → 直接测试 → diff 自审。
+“诊断登录失败但不要修”不会被自动改代码；“诊断并修复”才进入 change。
 
-Fast 不创建 OpenSpec change，不打开 Plannotator，也不写持久计划。
+### 4.2 Task Type：决定方法
 
-### Standard
+| 类型 | 主要节点 |
+|---|---|
+| Feature | brainstorming → spec/plan → TDD |
+| Bug | systematic-debugging → 根因证据 → 失败回归测试 → 最小修复 |
+| Refactor | 行为基线 → 影响分析 → characterization tests → 小步重构 |
+| Upgrade/Config | changelog/release notes → 兼容检查 → 升级前基线 → 回归 |
+| Migration/Infrastructure | 影响与回滚 → dry-run → 分批实施 → rollout verification |
+| Maintenance | 定向探索 → 最小编辑 → 直接验证 |
 
-这是默认模式，适合普通功能、兼容性接口扩展、模块内多组件修改和有限业务规则。
+因此 Standard Bug 不会无条件跑 brainstorming；如果根因修复出现新的产品/架构取舍，才动态追加 brainstorming。
 
-流程：
+### 4.3 Risk Mode：决定保障强度
 
-1. 必要时使用 Superpowers brainstorming 澄清取舍。
-2. 调用当前 OpenSpec 的原生 `propose`，只保留一个 change。
-3. 用 Superpowers writing-plans 细化 OpenSpec tasks。
-4. 进入 Plan Mode，Plannotator Hook 自动打开计划评审。
-5. 批准后调用 OpenSpec `apply`，使用 TDD/debugging 实现。
-6. 运行项目验证和 `openspec validate <change>`。
-7. 做 spec-compliance 与 code-quality 两遍 AI review。
-8. 用户已授权收尾时才 archive。
+Fast 必须证明需求明确、修改局部、消费者清楚、不改变公共边界/Schema/权限/关键语义、易回滚且可直接验证。它不创建 OpenSpec change，也没有预定人工 Gate。
 
-### Governed
+Standard 是普通修改默认模式，使用 OpenSpec 持久化并保留一次 Plannotator Plan Review。
 
-任一高风险触发器都进入 Governed，包括：关键业务语义、权限与敏感数据、Schema 迁移或回填、不兼容公共契约、跨服务协调发布、共享安全/基础设施默认行为、缺少可信回滚、跨仓库发布顺序。
+Governed 由关键业务语义、权限/敏感数据、Schema/回填、不兼容契约、共享基础设施、跨服务协调发布、缺少可信回滚等事实触发。在 Standard 之上增加高影响探索、隔离、完整验证和 Plannotator Code Review。
 
-流程在 Standard 基础上增加：OpenSpec explore（存在不确定性时）、完整风险/迁移/发布约束、隔离子代理调查、高风险计划审批、迁移与回滚验证、Plannotator Code Review，以及适用的安全/数据/架构专项评审。
+### 4.4 Specialized Gates：补专项证据
 
-文件少不代表 Fast。一个只有两行的授权判断或数据库迁移仍然是 Governed；反过来，只修改“支付结果页文案”也不会因为出现“支付”两个字自动升级。
+- data：Schema、回填、数据质量、隐私、备份与回滚。
+- security：认证授权、秘密、输入边界、安全策略和负向测试。
+- contract：消费者、兼容矩阵、契约测试、版本与弃用。
+- infrastructure：环境矩阵、资源权限、可逆演练和恢复。
+- release：发布顺序、灰度、停止条件和回滚演练。
+- observability：日志、指标、追踪、告警和运行手册。
 
-## 5. 工具是否需要手动触发
+Gate 可以叠加，不增加新模式。例如数据库迁移通常是 `Migration/Infrastructure + Governed + data/release/observability`。
 
-| 动作 | 默认触发方式 | 你是否要手动操作 |
-|---|---|---|
-| 启动任务 | `/new-task <需求>` 或直接描述需求 | 只需启动一次 |
-| 选择模式 | Router 根据证据自动完成 | 不需要 |
-| Superpowers skills | Router/Claude 按任务加载当前原生 skill | 不需要逐项触发 |
-| OpenSpec 流程 | Router 调用当前 OPSX 能力 | 正常不需要；宿主不支持 skill 间调用时会提示唯一下一条命令 |
-| Plannotator Plan Review | Claude Code Plan Mode 的 Hook 自动打开 | 需要在界面批准或反馈 |
-| Plannotator Code Review | Governed 收尾时调用原生 review | 需要在界面批准或反馈 |
-| Git 提交、推送、部署 | 仅在明确授权后执行 | 需要明确授权 |
+## 5. 三个工具的明确节点
 
-因此，自动化的是“选择和编排”，保留给人的只有有价值的决策与授权。
+Superpowers 只在对应方法节点调用原生 skill。Feature 必须 brainstorming；Bug 必须 systematic-debugging；生产行为变化执行 TDD；完成前执行 verification 和 review。
 
-## 6. Token 控制机制
+OpenSpec 从 Standard 开始使用 propose/apply/validate/archive，Governed 可先 explore。各 OPSX 子流程的 stop/ready 只把控制权交还 Router，用户不需要手动输入下一条命令。
 
-- `CLAUDE.md` 只保留长期不变规则；具体流程按需从 skill 加载。
-- Fast 不创建持久工件，不扫描全库，不进入 Plan Mode。
-- Standard 只探索相关模块和直接消费者，Superpowers 结论写入同一个 OpenSpec change。
-- Governed 把大范围调查放入隔离子代理，主上下文只接收证据摘要。
-- 不复制 OpenSpec、Superpowers 和 Plannotator 的内部说明，避免版本漂移与重复 Token。
-- 评审反馈只回传决策、阻断项和必要上下文。
+Plannotator 在 Standard/Governed 计划完整后触发一次 Plan Review；Governed 在实际 diff 和验证证据完成后再触发 Code Review。
 
-## 7. 降级与故障处理
+Integration Adapter Contract 会把 Superpowers 默认的逐段设计批准、独立设计/计划文件和 OpenSpec 的阶段停止合并到上述单一事实源和 Gate，但不会删减分析、调试、TDD、Review 与验证方法。
 
-- Superpowers 不可用：恢复 plugin/skill；不能无声替换其 TDD、debugging 或 verification 保障。
-- OpenSpec 不可用：Standard/Governed 暂停并给出 `openspec init/update` 指引；临时用对话计划替代属于保障降级，需要确认。
-- Plannotator 不可用：需要人工 Gate 的模式暂停；可在用户确认后改用明确的文本审批。
-- 测试环境不可用：Fast 不再成立；关键验证缺失时可升级 Governed。
+## 6. 状态持久化与续跑
 
-## 8. 模板维护与业务项目的边界
+Standard/Governed 在 OpenSpec change 内创建：
 
-压缩包内只有 6 个运行时文件。以下内容只用于模板自身维护，不需要业务开发者手动触发：
+```text
+openspec/changes/<change-id>/workflow-state.yaml
+```
 
-- `scripts/validate_workflow.py`：检查运行时结构、引用与发行包。
-- `scripts/evaluate_routing.py`：执行校准案例，防止路由规则漂移。
+它只记录 intent、task type、mode、gates、current node、ordered nodes、状态和证据，不复制 proposal/spec/design/tasks。
+
+状态在以下时机更新：propose 获得 change id 后、每个节点完成后、人工 Gate 前后、重路由后和中断前。新对话或上下文压缩后，Router 匹配活动 change，从最早未完成 REQUIRED 节点继续，已完成节点不会重复。
+
+若同时有多个活动 change 且请求无法消歧，Router 才会询问要恢复哪一个。Fast 不创建 sidecar；升级 Standard 时再创建。
+
+## 7. 什么时候需要你操作
+
+| 动作 | 是否手动 |
+|---|---|
+| 启动 `/new-task` 或描述需求 | 一次 |
+| Intent、Task Type、Mode、Gates 选择 | 不需要 |
+| Superpowers 与 OpenSpec 内部节点 | 不需要 |
+| Standard/Governed Plan Review | 需要在 Plannotator 批准或反馈 |
+| Governed Code Review | 需要在 Plannotator 批准或反馈 |
+| Git 提交、推送、部署 | 需要明确授权 |
+
+真正影响结果且代码库无法回答的分歧、能力缺失导致降级、外部写入、秘密或破坏性动作也会暂停。Claude Code 自身权限弹窗属于宿主安全策略，不是工作流 Gate。
+
+## 8. Token 控制
+
+- 非 change 意图不加载修改链。
+- Fast 不创建持久规格，不扫描全库。
+- 任务类型只加载对应方法，不执行无关 brainstorming 或迁移步骤。
+- Standard 只维护一个 OpenSpec change 和一次计划评审。
+- Governed 的高噪声调查可隔离给子代理，主上下文只保留证据摘要。
+- 专项风险通过 Gate 叠加，不复制完整模式流程。
+- 状态文件避免上下文中断后重复探索、重复确认和重复 Token。
+
+## 9. 降级与完成标准
+
+Superpowers、OpenSpec 或 Plannotator 缺失时先尝试恢复；若替代方案降低保障才请求决定。关键测试环境不可用会使 Fast 失效，高风险验证缺失可升级 Governed。
+
+任务完成时应看到：intent、task type、初始/最终 mode、gates、实际 ordered workflow、节点状态、工具调用、测试与规格校验、评审结果、未验证项和剩余风险。Standard/Governed 还必须先将状态标记 completed，再 validate 和 archive。
+
+## 10. 维护脚本
+
+以下文件只维护模板，不进入业务压缩包，也不需要业务开发者手动运行：
+
+- `scripts/validate_workflow.py`：检查组合合同、状态合同、引用和发行包。
+- `scripts/evaluate_routing.py`：校准 Intent、Task Type 和 Risk Mode。
 - `scripts/build_distribution.py`：构建可复现压缩包。
-- `evals/routing-cases.json`：覆盖小改动、普通功能、权限、迁移、契约和关键词误判等案例。
-
-## 9. 完成标准
-
-任务完成时应看到：初始/最终模式及证据、实际使用的三个工具节点、修改结果、已执行测试与规格校验、评审结果，以及未验证项和剩余风险。没有运行过的检查不能被描述为“通过”。
+- `evals/routing-cases.json`：覆盖解释、诊断、功能、Bug、重构、升级、迁移和维护场景。

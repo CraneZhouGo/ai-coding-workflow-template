@@ -1,64 +1,76 @@
 ---
 name: workflow-router
-description: 根据行为风险、影响范围和不确定性，把编码任务路由到 Fast、Standard 或 Governed，并编排 Superpowers、OpenSpec 与 Plannotator。处理新功能、Bug、重构、迁移和基础设施变更时使用。
+description: 按 Intent、Task Type、Risk Mode 和 Specialized Gates 组合并连续执行工作流；可从 OpenSpec workflow-state.yaml 恢复，Route Card 后不请求流程确认。
+user-invocable: false
 ---
 
-# Workflow Router — V3 Adaptive
+# Workflow Router — V3.2 Composable
 
-本 skill 是薄编排层。它选择工具和关卡，但不复制 Superpowers、OpenSpec 或 Plannotator 的内部方法。
+本 skill 负责分类、组合、持久化和执行推进。它不把三种模式误当作三条固定业务流程。
 
-## 1. Build the evidence set
+## 1. Resume before reroute
 
-先读 `.claude/project-profile.yaml`。从最窄范围开始探索，只收集路由所需事实：
+读取 `.claude/project-profile.yaml`。若 `state.resume_incomplete` 为 true，先查找 `openspec/changes/*/workflow-state.yaml` 中的 active/blocked 状态：
 
-- 变更后的用户可观察行为和验收条件
-- 直接修改范围与消费者
-- 公共 API、事件、Schema、权限和关键业务语义
-- 回滚难度、发布协调和当前未知项
+- 当前请求与唯一活动 change 匹配时，读取其 OpenSpec 工件和状态，从最早未完成 REQUIRED 节点继续。
+- 已完成节点不得重复执行；blocked 节点在阻断条件解除后转为 in_progress。
+- 多个 change 均可能匹配且无法从上下文消歧时，才暂停请用户选择。
+- 没有可恢复状态时，按新任务处理。
 
-不要在路由前扫描整个仓库。探索输出应是证据，不是长篇仓库摘要。
+## 2. Intent
 
-## 2. Select the mode
+按 `ROUTING.md` 分类为 `explain | review | diagnose-only | plan-only | change`。非 change 只执行对应只读分支，不选择风险模式，也不产生修改。
 
-读取 `ROUTING.md`。先检查 Governed 风险触发器，再检查 Fast 的全部准入条件；其余任务进入 Standard。
+## 3. Evidence and classification
+
+对 change 从最窄范围收集：用户可观察行为、验收条件、直接修改与消费者、公共契约/Schema/权限/关键语义、回滚和发布约束。
+
+依次确定：
+
+1. Task Type：feature、bug、refactor、upgrade-config、migration-infrastructure 或 maintenance。
+2. Risk Mode：先应用 Governed 风险下限，再检查 Fast 全部准入条件，其余 Standard。
+3. Specialized Gates：data、security、contract、infrastructure、release、observability，可为多个或 none。
+
+关键词只是调查线索，代码库事实和行为影响才是证据。
+
+## 4. Capability check
+
+确认组合后实际需要的能力可调用：
+
+- 对应 Superpowers 原生 skills
+- Standard/Governed 的 OpenSpec OPSX skills/commands 与 `openspec` CLI
+- 当前模式需要的 Plannotator Hook/review
+- 项目验证命令和专项 Gate 所需验证能力
+
+能力可用就直接继续。缺失时先尝试无损恢复；只有替代方案降低保障才暂停。
+
+## 5. Compose and persist
+
+读取 `PLAYBOOKS.md`，按以下公式展开一个去重、有序的节点账本：
 
 ```text
-if any governed trigger: governed
-else if every fast condition: fast
-else: standard
+Core Spine + Task Method + Risk Safeguards + Specialized Gates
 ```
 
-不计算加权总分。未知事实不能当作低风险；先按 Standard 继续定向探索，必要时升级。
+相同语义节点只保留一次，以更严格的验证要求为准。Standard/Governed 在 OpenSpec propose 获得 change id 后立即创建 `openspec/changes/<change-id>/workflow-state.yaml`，并在每个节点边界更新。
 
-## 3. Check capabilities
+## 6. Execute without gaps
 
-按所选模式确认能力真实可用：
+节点账本格式：
 
-- Superpowers：相关 skills 可被发现和加载。
-- OpenSpec：Standard/Governed 时 `openspec` 已初始化，原生 OPSX skills/commands 可用。
-- Plannotator：需要评审时插件/Hook 与 `plannotator` 能力可用。
-- 项目验证：profile 中对应命令可运行，或能从仓库发现可信替代命令。
+```text
+node | source(core|method|mode|gate) | required | status(pending|in_progress|done|N/A|blocked) | evidence
+```
 
-优先调用原生能力。不要复制 OpenSpec 模板、Superpowers 步骤或 Plannotator Hook 配置。
+- REQUIRED 节点必须显式调用相应原生 skill/command。
+- 不适用时写 `N/A + evidence`；任务方法不能因风险模式变化而被错误替换。
+- 节点完成后自动持久化并进入下一节点，不询问许可。
+- OpenSpec 子工作流完成后返回 Router，不要求用户手动触发下一命令。
 
-若能力缺失，先给出恢复方法。只有会降低保障级别的降级才需要用户确认。
+## 7. Re-route
 
-## 4. Execute the playbook
+探索后、发现契约/Schema/权限/关键语义变化、diff 扩大和交付前，重新评估 task type、mode 和 gates。升级或新增 Gate 后，从新组合中最早未完成 REQUIRED 节点继续，不重复等价节点，也不请求模式确认。
 
-读取 `PLAYBOOKS.md`，严格执行对应模式。Superpowers 的分析与计划结论直接写入当前 OpenSpec change（若启用），不再创建第二套长期文档。
+## 8. Complete
 
-## 5. Re-evaluate
-
-在以下时点重新路由：
-
-- 初次代码探索完成后
-- 发现公共契约、Schema、数据迁移、权限或关键业务语义变化时
-- 修改超出原模块或出现新的消费者时
-- 实现方案发生实质变化时
-- 最终交付前
-
-升级立即生效。降级只允许在新证据消除风险后发生，并在 Route Card 中说明移除的关卡。
-
-## 6. Finish with evidence
-
-运行实际验证，检查最终 diff，完成当前模式要求的规格校验和评审。不得把计划执行的检查写成已经通过。
+只有组合后所有 REQUIRED 节点均为 done 或有证据的 N/A，验证通过，Standard/Governed 状态已标记 completed，才能 archive 并声明完成。

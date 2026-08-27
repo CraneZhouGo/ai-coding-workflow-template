@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the V3 Adaptive runtime and deterministic distribution."""
+"""Validate the V3.2 Composable runtime and deterministic distribution."""
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ def validate_files(errors: list[str]) -> None:
         "tests/test_workflow_tools.py",
         ".github/workflows/validate-workflow-template.yml",
         "docs/README.md",
+        "docs/design/v3-composable.md",
         "docs/market-benchmark.md",
         "AI-Coding-Workflow-Template-详细使用说明.md",
     }
@@ -44,10 +45,11 @@ def validate_files(errors: list[str]) -> None:
         ".claude/skills/workflow-router/WORKFLOWS.md",
         "scripts/record_workflow_metric.py",
         "scripts/workflow_report.py",
+        "docs/design/v3-adaptive.md",
     )
     for relative in obsolete_files:
         if (ROOT / relative).exists():
-            errors.append(f"obsolete runtime component remains: {relative}")
+            errors.append(f"obsolete component remains: {relative}")
 
     for relative in (
         ".claude/skills/workflow-router/gates",
@@ -61,20 +63,49 @@ def validate_files(errors: list[str]) -> None:
 def validate_content(errors: list[str]) -> None:
     runtime = "\n".join((ROOT / path).read_text(encoding="utf-8") for path in sorted(RUNTIME_FILES))
     required_terms = (
-        "V3 Adaptive", "Fast", "Standard", "Governed", "Superpowers",
-        "OpenSpec", "Plannotator", "Route Card", "openspec validate",
+        "V3.2 Composable",
+        "Intent → Task Type → Risk Mode → Specialized Gates → Ordered Execution",
+        "Core Spine + Task Method + Risk Safeguards + Specialized Gates",
+        "Fast",
+        "Standard",
+        "Governed",
+        "Superpowers",
+        "OpenSpec",
+        "Plannotator",
+        "Route Card",
+        "workflow-state.yaml",
+        "feature",
+        "bug",
+        "refactor",
+        "upgrade-config",
+        "migration-infrastructure",
+        "maintenance",
+        "data",
+        "security",
+        "contract",
+        "infrastructure",
+        "release",
+        "observability",
+        "Integration Adapter Contract",
+        "返回父 Router",
+        "不得要求用户手动输入下一条 OPSX 命令",
     )
     for term in required_terms:
         if term not in runtime:
-            errors.append(f"runtime missing required Adaptive term: {term}")
+            errors.append(f"runtime missing required Composable term: {term}")
 
     stale_terms = (
-        "V2.2 Balanced", "score: n/33", "0~4", "5~10", "11~20", "21~33",
-        "tasks.jsonl", "metrics-schema", "workflow-report",
+        "V2.2 Balanced",
+        "V3.1 Adaptive",
+        "score: n/33",
+        "tasks.jsonl",
+        "metrics-schema",
+        "S1 REQUIRED — superpowers:brainstorming",
+        "Standard state machine",
     )
     for term in stale_terms:
         if term in runtime:
-            errors.append(f"runtime contains stale term: {term}")
+            errors.append(f"runtime contains stale fixed-workflow term: {term}")
 
     routing = (ROOT / ".claude/skills/workflow-router/ROUTING.md").read_text(encoding="utf-8")
     for rule in ("any trigger is enough", "every condition must hold", "the default"):
@@ -82,15 +113,62 @@ def validate_content(errors: list[str]) -> None:
             errors.append(f"routing decision rule missing: {rule}")
 
     playbooks = (ROOT / ".claude/skills/workflow-router/PLAYBOOKS.md").read_text(encoding="utf-8")
-    for node in ("探索与推理", "持久规格", "实现计划", "Plan Review", "实现", "验证", "Code Review", "收尾"):
+    core_nodes = [f"C{index} REQUIRED" for index in range(1, 8)]
+    positions = [playbooks.find(node) for node in core_nodes]
+    for node, position in zip(core_nodes, positions):
+        if position < 0:
+            errors.append(f"Core Spine node missing: {node}")
+    if all(position >= 0 for position in positions) and positions != sorted(positions):
+        errors.append("Core Spine nodes are not in execution order")
+
+    for node in (
+        "M-FE1 REQUIRED — superpowers:brainstorming",
+        "M-BU1 REQUIRED — superpowers:systematic-debugging",
+        "M-BU3 REQUIRED — failing-regression-test",
+        "M-RE1 REQUIRED — behavior-baseline",
+        "M-UP1 REQUIRED — changelog-release-note-analysis",
+        "M-MI1 REQUIRED — impact-and-rollback-plan",
+        "M-MA1 REQUIRED — focused-exploration",
+        "S-HG1 HUMAN GATE — plannotator-plan-review",
+        "G-HG1 HUMAN GATE — plannotator-code-review",
+    ):
         if node not in playbooks:
-            errors.append(f"tool orchestration node missing: {node}")
+            errors.append(f"composable orchestration node missing: {node}")
+
+    if "Standard：只有 1 个预定人工 Gate" not in playbooks:
+        errors.append("Standard must declare exactly one planned human gate")
+    standard = playbooks.split("### Standard safeguards", 1)[-1].split("### Governed safeguards", 1)[0]
+    if standard.count("HUMAN GATE") != 1:
+        errors.append("Standard safeguards must contain exactly one HUMAN GATE")
+
+    state_terms = (
+        "schema_version: 1",
+        "current_node:",
+        "status: active",
+        "pending | in_progress | done | N/A | blocked",
+        "done 节点不重复",
+        "openspec validate <change-id>",
+    )
+    for term in state_terms:
+        if term not in playbooks:
+            errors.append(f"durable state contract missing: {term}")
 
     profile = (ROOT / ".claude/project-profile.yaml").read_text(encoding="utf-8")
     for key in (
-        "allow_fast_mode", "openspec_from", "plannotator_plan_review_from",
-        "plannotator_code_review_from", "rollback", "observability",
-        "deployment_strategy", "public_contract_locations",
+        "allow_fast_mode",
+        "openspec_from",
+        "plannotator_plan_review_from",
+        "plannotator_code_review_from",
+        "persist_from",
+        "file_name",
+        "resume_incomplete",
+        "rollback",
+        "observability",
+        "deployment_strategy",
+        "public_contract_locations",
+        "route_requires_confirmation",
+        "internal_steps_require_confirmation",
+        "openspec_lifecycle_authorized",
     ):
         if re.search(rf"^\s*{re.escape(key)}\s*:", profile, re.MULTILINE) is None:
             errors.append(f"project profile missing key: {key}")
@@ -113,11 +191,11 @@ def validate_references(errors: list[str]) -> None:
 
 def validate_manifest(errors: list[str], archive_path: Path | None) -> None:
     manifest = json.loads((ROOT / "distribution-manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("version") != "3.0-adaptive":
-        errors.append("distribution version must be 3.0-adaptive")
+    if manifest.get("version") != "3.2-composable":
+        errors.append("distribution version must be 3.2-composable")
     included = set(manifest.get("include", []))
     if included != RUNTIME_FILES:
-        errors.append("distribution must contain exactly the six Adaptive runtime files")
+        errors.append("distribution must contain exactly the six Composable runtime files")
     if any(path.startswith(("scripts/", "tests/", "evals/")) for path in included):
         errors.append("business distribution must not include maintainer tooling")
 
@@ -129,7 +207,7 @@ def validate_manifest(errors: list[str], archive_path: Path | None) -> None:
     with ZipFile(archive_path) as archive:
         actual = {name for name in archive.namelist() if not name.endswith("/")}
         if actual != included:
-            errors.append("archive content does not match Adaptive manifest")
+            errors.append("archive content does not match Composable manifest")
         for name in actual & included:
             if archive.read(name) != (ROOT / name).read_bytes():
                 errors.append(f"archive has stale content: {name}")
@@ -149,7 +227,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}")
         return 1
-    print("V3 Adaptive workflow validation passed")
+    print("V3.2 Composable workflow validation passed")
     return 0
 
 

@@ -1,38 +1,70 @@
-# AI Coding Workflow Constitution — V3 Adaptive
+# AI Coding Workflow Constitution — V3.2 Composable
 
 ## Purpose
 
-本项目使用一个薄编排层，根据变更风险与影响范围自动选择 Fast、Standard 或 Governed 工作流，在 Token 成本、交付速度和工程可靠性之间取得平衡。
+本项目先识别用户意图，再按任务类型选择 Superpowers 方法、按风险选择 Fast/Standard/Governed 保障，并按专项风险叠加 Gate。
 
-用户只需描述需求或调用 `/new-task`；不要要求用户手动挑选模式或逐个触发工具。
+最终工作流不是固定清单，而是：
+
+```text
+Core Spine + Task Method + Risk Safeguards + Specialized Gates
+```
+
+用户只需描述需求或调用 `/new-task`。Route Card 是通知，内部节点和模式升级不是审批事项。
+
+## Autonomy Contract
+
+一次 `/new-task` 或明确的修改/构建/修复请求，授权在当前项目内连续执行：读取与搜索、创建/修改文件、运行非破坏性命令、构建与测试，以及当前 OpenSpec change 的 propose、apply、validate、状态更新和 archive。
+
+以下动作不需要再次确认：
+
+- 意图、任务类型、风险模式、专项 Gate 和节点组合
+- Route Card、模式自动升级和内部节点推进
+- Superpowers、OpenSpec 与 Claude Code 的内部交接
+- 本地实现、测试、静态检查、diff review 和 OpenSpec 生命周期
+- 已批准计划范围内的修复、重新验证和状态恢复
+
+只在以下情况暂停：
+
+- 存在会实质改变结果且无法从需求或代码库证据消除的分歧
+- 到达当前模式预定的 Plannotator 人工 Gate
+- 必需能力缺失且替代方案会降低保障
+- 多个未完成 OpenSpec change 均可能对应当前请求，无法可靠恢复
+- 需要外部写入、秘密、破坏性动作、提交、推送或部署
+
+不得在 Route Card 后询问“是否继续/是否采用此流程”，不得逐节点请求许可。宿主权限弹窗不是工作流 Gate，也不得用宽泛授权绕过。
 
 ## Stable Rules
 
 1. 新任务先读取 `.claude/project-profile.yaml`，再加载 `workflow-router` skill。
-2. 路由以代码库证据和行为风险为准；文件数量、目录名和业务关键词不能单独决定模式。
-3. 高风险触发器决定最低模式；范围、耦合和不确定性只能将模式升级。
-4. 探索后、发现公共契约/数据/权限变化时、diff 明显扩大时和交付前重新评估。
-5. Superpowers 负责开发方法，OpenSpec 负责持久化需求状态，Plannotator 负责人类决策，Claude Code 负责执行；不得复制彼此的产物。
-6. 优先调用工具的原生 skill、命令和 Hook，不在本模板中复刻其内部流程。
-7. 子代理用于隔离高噪声探索或独立工作；只有低耦合、可独立验证的任务才并行。
-8. 工具缺失时说明缺少的能力和恢复方法；涉及降低保障级别时必须征得用户同意。
-9. 完成声明必须附带实际执行的验证证据、Review 结果、未验证项和剩余风险。
-10. 不自动提交、推送、部署或归档规格，除非用户已授权对应动作。
+2. 路由顺序固定为 `Intent → Task Type → Risk Mode → Specialized Gates → Ordered Execution`。
+3. `explain | review | diagnose-only | plan-only` 默认保持只读；只有 `change` 进入修改主链。诊断请求不得擅自修复。
+4. 风险模式和任务类型正交：模式决定保障强度，任务类型决定方法节点。文件数量、目录名和关键词不能单独决定任一项。
+5. 高风险触发器决定 Governed 下限；Fast 必须满足全部准入条件；其余修改默认 Standard。
+6. Feature 使用 brainstorming/spec/TDD；Bug 使用 systematic-debugging/根因证据/回归测试；Refactor、Upgrade/Config、Migration/Infrastructure 和 Maintenance 使用各自方法，不强制套用 Feature 链。
+7. Standard/Governed 必须执行组合后所有 REQUIRED 节点；不适用节点记录 `N/A + evidence`，不能静默跳过。
+8. Superpowers 管方法，OpenSpec 管持久化需求与流程状态，Plannotator 管人类决策，Claude Code 管执行；不得复制长期产物。
+9. 按 `PLAYBOOKS.md` 的 Integration Adapter Contract 整合工具：保留原生方法，但重复审批、独立设计/计划文件和自动提交由 Plannotator Gate、OpenSpec 单一事实源和本项目授权边界替代。
+10. 子 skill/command 的 `stop`、`ready for next` 或完成消息只把控制权交还 Router；Router 自动持久化状态并调用下一节点。
+11. Standard/Governed 在 `openspec/changes/<change-id>/workflow-state.yaml` 保存节点账本；新回合优先恢复最早未完成 REQUIRED 节点，不重复已完成节点。
+12. 探索完成、发现公共契约/数据/权限/关键语义变化、diff 扩大和交付前重新路由；升级不需要确认。
+13. 子代理用于隔离高噪声探索；只有低耦合且可独立验证的任务才并行。
+14. 完成声明必须附实际验证、规格与状态文件结果、Review 结果、未验证项和剩余风险。
+15. `/new-task` 授权本地 OpenSpec archive，但不授权 Git 提交、推送、部署或破坏性清理。
 
 ## Source of Truth
 
 - 项目事实与验证命令：`.claude/project-profile.yaml`
-- 路由与执行契约：`.claude/skills/workflow-router/`
-- Standard/Governed 需求与变更状态：OpenSpec `openspec/`
-- 实现计划：优先写入当前 OpenSpec change 的 tasks；不要另建重复计划
-- 评审意见：Plannotator 当前会话与代码 diff
+- 路由、组合规则和状态合同：`.claude/skills/workflow-router/`
+- Standard/Governed 的需求、设计、任务和状态：当前 OpenSpec change
+- 人工评审决定：Plannotator 会话
+- 实现事实：代码、测试结果和最终 diff
 
 ## Completion Report
 
-最终答复应简洁包含：
-
-- 初始模式、最终模式和关键证据
-- 实际使用的 Superpowers、OpenSpec、Plannotator 节点
-- 修改结果
-- 测试、规格校验和 Review 结果
-- 未验证事项、风险和需要用户执行的后续动作
+- intent、task type、initial/final mode、specialized gates 与证据
+- 实际组合出的 ordered workflow
+- 节点状态：`done | N/A + evidence | blocked`
+- Superpowers、OpenSpec、Plannotator 的实际调用
+- 修改、测试、规格校验、状态归档和 Review 结果
+- 未验证项、剩余风险和需要用户授权的外部动作

@@ -1,4 +1,4 @@
-version: 3
+version: 3.2
 
 project:
   name: "replace-me"
@@ -34,6 +34,18 @@ workflow:
   plannotator_plan_review_from: "standard"
   plannotator_code_review_from: "governed"
 
+state:
+  persist_from: "standard"
+  file_name: "workflow-state.yaml"
+  resume_incomplete: true
+
+autonomy:
+  route_requires_confirmation: false
+  internal_steps_require_confirmation: false
+  local_changes_authorized: true
+  local_validation_authorized: true
+  openspec_lifecycle_authorized: true
+
 notes:
   - "首次接入时，用真实命令、关键目录和交付能力替换空值或 unknown。"
-  - "profile 只存项目事实，不在这里复制路由规则。"
+  - "profile 只存项目事实和授权边界，不复制路由、组合规则或节点状态。"

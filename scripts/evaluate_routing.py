@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Run the routing policy's maintainer calibration cases.
-
-This evaluator is intentionally excluded from the business distribution. It
-protects the template policy from accidental drift; the coding agent still
-routes from repository evidence rather than asking users to fill a form.
-"""
+"""Run maintainer calibration cases for the V3.2 composable router."""
 
 from __future__ import annotations
 
@@ -35,9 +30,48 @@ FAST_FACTS = {
     "direct_validation",
     "no_design_tradeoff",
 }
+GATE_FACTS = {
+    "data": "data_gate",
+    "security": "security_gate",
+    "contract": "contract_gate",
+    "infrastructure": "infrastructure_gate",
+    "release": "release_gate",
+    "observability": "observability_gate",
+}
+
+
+def classify_intent(facts: dict[str, bool]) -> str:
+    """Classify authorization intent; an explicit implementation request wins."""
+    if facts.get("requested_change", False):
+        return "change"
+    if facts.get("requested_plan", False):
+        return "plan-only"
+    if facts.get("requested_diagnosis", False):
+        return "diagnose-only"
+    if facts.get("requested_review", False):
+        return "review"
+    return "explain"
+
+
+def classify_task_type(facts: dict[str, bool]) -> str | None:
+    """Select the primary method family independently from risk mode."""
+    if facts.get("migration_or_infrastructure", False):
+        return "migration-infrastructure"
+    if facts.get("bug_or_failure", False):
+        return "bug"
+    if facts.get("refactor_only", False):
+        return "refactor"
+    if facts.get("upgrade_or_configuration", False):
+        return "upgrade-config"
+    if facts.get("maintenance_only", False):
+        return "maintenance"
+    if facts.get("feature_or_behavior", False) or facts.get("requested_change", False):
+        return "feature"
+    return None
 
 
 def route(facts: dict[str, bool]) -> str:
+    """Route a change to a risk mode. Callers must classify intent first."""
     if any(facts.get(name, False) for name in GOVERNED_FACTS):
         return "governed"
     if all(facts.get(name, False) for name in FAST_FACTS):
@@ -45,13 +79,34 @@ def route(facts: dict[str, bool]) -> str:
     return "standard"
 
 
+def route_mode(facts: dict[str, bool]) -> str | None:
+    if classify_intent(facts) != "change":
+        return None
+    return route(facts)
+
+
+def classify_specialized_gates(facts: dict[str, bool]) -> list[str]:
+    """Return specialized gates in stable execution order."""
+    return [gate for gate, signal in GATE_FACTS.items() if facts.get(signal, False)]
+
+
 def evaluate(path: Path) -> list[str]:
     cases = json.loads(path.read_text(encoding="utf-8"))
     failures: list[str] = []
     for case in cases:
-        actual = route(case["facts"])
-        if actual != case["expected_mode"]:
-            failures.append(f"{case['id']}: expected {case['expected_mode']}, got {actual}")
+        facts = case["facts"]
+        actual = {
+            "intent": classify_intent(facts),
+            "task_type": classify_task_type(facts),
+            "mode": route_mode(facts),
+            "gates": classify_specialized_gates(facts),
+        }
+        for field in ("intent", "task_type", "mode", "gates"):
+            expected = case.get(f"expected_{field}", [] if field == "gates" else None)
+            if actual[field] != expected:
+                failures.append(
+                    f"{case['id']} {field}: expected {expected!r}, got {actual[field]!r}"
+                )
     return failures
 
 
@@ -61,12 +116,12 @@ def main() -> int:
     args = parser.parse_args()
     failures = evaluate(args.cases)
     if failures:
-        print("routing evaluation failed:")
+        print("composable routing evaluation failed:")
         for failure in failures:
             print(f"- {failure}")
         return 1
     count = len(json.loads(args.cases.read_text(encoding="utf-8")))
-    print(f"routing evaluation passed: {count} cases")
+    print(f"composable routing evaluation passed: {count} cases")
     return 0
 
 

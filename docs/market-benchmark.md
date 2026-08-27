@@ -1,42 +1,49 @@
 # 2026 AI Coding Workflow Benchmark
 
-调研日期：2026-08-27。只采用产品官方文档或官方仓库，目的不是堆砌功能，而是确定本模板应承担和不应承担的职责。
+调研日期：2026-08-27。只采用产品官方文档或官方仓库，目的不是堆砌功能，而是明确模板应承担的组合职责。
 
 ## Market signals
 
-| 市场实践 | 官方依据 | V3 决策 |
+| 市场实践 | 官方依据 | V3.2 决策 |
 |---|---|---|
-| 常驻上下文只放稳定约定，可复用流程按需加载为 skills | [Claude Code extension architecture](https://code.claude.com/docs/en/features-overview)、[OpenAI Codex skills](https://developers.openai.com/codex/build-skills) | `CLAUDE.md` 只保留宪法；入口和 Router 都迁为 skills |
-| 子代理的核心价值是上下文隔离，适合高噪声调查和独立任务 | [Claude Code subagents](https://code.claude.com/docs/en/sub-agents)、[OpenAI Codex subagents](https://developers.openai.com/codex/agent-configuration/subagents) | Governed 才按证据使用子代理；并行不是复杂度指标 |
-| Hook 适合每次都必须发生的确定性自动化 | [Claude Code hooks](https://code.claude.com/docs/en/hooks)、[OpenAI Codex hooks](https://developers.openai.com/codex/hooks) | 不自建重复 Hook；计划评审交给 Plannotator 自己的 Hook，项目检查留给项目 CI/Hook |
-| 规格流应轻量、可迭代，而不是固定瀑布阶段 | [OpenSpec official repository](https://github.com/Fission-AI/openspec) | 调用当前 OPSX 原生 explore/propose/apply/archive，不复制旧版工件模板 |
-| 方法论已覆盖 brainstorming、worktree、planning、TDD、review、verification | [Superpowers official repository](https://github.com/obra/superpowers) | Router 只选择所需能力，不再维护另一套步骤说明 |
-| 计划评审可以自动进入浏览器，代码评审是显式 diff Gate | [Plannotator official repository](https://github.com/backnotprop/plannotator) | Standard 强制 Plan Review；Governed 增加 Code Review |
-| 项目规则逐步加载并按路径/场景作用，避免所有规则常驻 | [Cursor project rules](https://docs.cursor.com/context/rules-for-ai)、[Kiro steering](https://kiro.dev/docs/steering/) | 通用模板不预造领域规则；接入业务项目后才按真实目录增加 scoped rules |
-| 代理工作应隔离环境并重视命令执行和数据外泄风险 | [Cursor background agents](https://docs.cursor.com/background-agent)、[OpenAI Codex worktrees](https://developers.openai.com/codex/environments/git-worktrees) | 只有独立、低耦合、可独立验证的批次才使用 worktree；不默认并行 |
+| 稳定约定常驻，可复用流程按需加载 | [Claude Code extension architecture](https://code.claude.com/docs/en/features-overview)、[OpenAI Codex skills](https://developers.openai.com/codex/build-skills) | 宪法保持短小，Router 按任务加载 routing/playbooks |
+| 方法论按任务问题选择技能，而不是把所有技能串成每次必经链 | [Superpowers official repository](https://github.com/obra/superpowers) | Task Type 分别选择 brainstorming、systematic-debugging、TDD、planning 和 verification |
+| 规格应轻量、可迭代并支持 change 生命周期 | [OpenSpec official repository](https://github.com/Fission-AI/OpenSpec) | Standard/Governed 用原生生命周期；sidecar 只补编排状态，不复制 schema |
+| 计划评审可由 Hook 触发，代码评审是独立 diff Gate | [Plannotator official repository](https://github.com/backnotprop/plannotator) | Standard 保留一个 Plan Gate，Governed 增加 Code Gate |
+| 子代理的主要价值是上下文隔离 | [Claude Code subagents](https://code.claude.com/docs/en/sub-agents)、[OpenAI Codex subagents](https://developers.openai.com/codex/agent-configuration/subagents) | 仅 Governed 高噪声调查或低耦合执行使用子代理 |
+| 本地范围内工作应自主推进，高影响外部动作才确认 | [OpenAI model guidance](https://developers.openai.com/api/docs/guides/latest-model) | Route Card 和内部节点不确认，保留明确人类 Gate 与授权边界 |
+| 项目规则应按范围加载，不让无关上下文常驻 | [Cursor project rules](https://docs.cursor.com/context/rules-for-ai)、[Kiro steering](https://kiro.dev/docs/steering/) | 通用模板只保留项目画像，领域规则在业务项目按真实目录增加 |
 
 ## Architecture consequences
 
-### Thin orchestration
+### Orthogonal routing instead of bigger modes
 
-OpenSpec、Superpowers 和 Plannotator 都在快速迭代。把它们的具体内部步骤复制进模板会立即形成第四套事实源。V3 只固定职责、选择条件、交接点和完成证据；命令细节以安装版本为准。
+模式数量增加会产生组合爆炸，固定模式链又会把 Feature 方法错误套给 Bug。V3.2 保留三种风险模式，但把 Intent、Task Type 和 Specialized Gates 独立出来。新增风险通常只需增加 Gate，新增任务形态只需增加 Method module。
+
+### Thin orchestration with explicit handoffs
+
+OpenSpec、Superpowers 和 Plannotator 都在快速迭代。模板只固定职责、选择条件、交接点、状态和完成证据，具体 skill 内部步骤由安装版本负责。项目级 Adapter Contract 合并重复批准、文件和自动提交边界。
+
+### Durable state without a workflow platform
+
+长任务会跨越上下文压缩和人工评审。把最小节点账本放进当前 OpenSpec change，既能续跑，又不引入数据库、指标平台或业务包脚本。完成后随 change 一起归档。
 
 ### Risk floors instead of scores
 
-加权分数适合报表，不适合安全边界。两行授权逻辑可能高风险，几十个文档文件可能低风险。V3 让高风险事实直接设定 Governed 下限，Fast 必须证明全部准入条件，其余默认 Standard。
+高风险事实直接设置 Governed 下限；Fast 必须证明全部准入条件；其余修改默认 Standard。任务方法不会降低这个风险下限。
 
-### Human attention is the scarce resource
+### Human attention is scarce
 
-每个任务都打开两次评审会制造审批疲劳。V3 把计划评审放在需要持久规格的 Standard/Governed，把代码评审强制留给 Governed；Fast 只保留验证和 diff 自审。
+工作流只保留真正需要决定的 Plannotator Gate。宿主安全权限仍独立存在，不能被工作流宽泛绕过。
 
-### Evals outside the business runtime
+### Evals stay outside business runtime
 
-模板维护需要可重复校准，但业务项目不应携带维护脚本。`evals/routing-cases.json` 和 `scripts/evaluate_routing.py` 只验证模板策略，发行包仍保持 6 个文件。
+维护仓库用案例校准 Intent、Task Type 和 Risk Mode，用测试校准组合顺序与状态恢复。分发包仍只有 6 个运行时文件。
 
 ## Deliberately excluded
 
-- 默认 Metrics 平台：缺少规模和决策闭环时只会增加维护成本。
-- 自定义 OpenSpec schema：应由采用团队根据真实治理需要扩展。
-- 通用领域 rules：不知道业务目录时预设 path scope 容易误导。
-- 默认多 Agent：并行会增加协调、合并和 Token 成本，只在任务独立时有收益。
-- 自定义安全 Hook：每个项目的危险命令、lint 和测试策略不同，应在业务项目接入阶段配置。
+- 第四或更多固定模式：专项 Gate 比复制整条流程更可扩展。
+- 默认 Metrics 平台：没有规模与决策闭环时只增加维护成本。
+- 自定义 OpenSpec schema：状态使用 workflow-owned sidecar，不劫持 OpenSpec 工件格式。
+- 默认多 Agent：并行会增加协调、合并和 Token 成本。
+- 通用领域 rules 和安全 Hook：应在业务项目接入时按真实边界配置。

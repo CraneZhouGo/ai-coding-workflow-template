@@ -3,6 +3,8 @@
     "id": "copy-change",
     "summary": "修改单页按钮文案并运行快照测试",
     "facts": {
+      "requested_change": true,
+      "maintenance_only": true,
       "clear_acceptance": true,
       "localized_change": true,
       "consumers_known": true,
@@ -11,12 +13,16 @@
       "direct_validation": true,
       "no_design_tradeoff": true
     },
+    "expected_intent": "change",
+    "expected_task_type": "maintenance",
     "expected_mode": "fast"
   },
   {
     "id": "localized-auth-fix",
     "summary": "局部修复授权判断，即使文件少也改变关键语义",
     "facts": {
+      "requested_change": true,
+      "bug_or_failure": true,
       "clear_acceptance": true,
       "localized_change": true,
       "consumers_known": true,
@@ -24,14 +30,20 @@
       "easy_rollback": true,
       "direct_validation": true,
       "no_design_tradeoff": true,
-      "critical_semantics_changed": true
+      "critical_semantics_changed": true,
+      "security_gate": true
     },
-    "expected_mode": "governed"
+    "expected_intent": "change",
+    "expected_task_type": "bug",
+    "expected_mode": "governed",
+    "expected_gates": ["security"]
   },
   {
     "id": "ordinary-feature",
     "summary": "同一模块新增筛选接口和前端交互",
     "facts": {
+      "requested_change": true,
+      "feature_or_behavior": true,
       "clear_acceptance": true,
       "localized_change": false,
       "consumers_known": true,
@@ -40,42 +52,53 @@
       "direct_validation": true,
       "no_design_tradeoff": false
     },
+    "expected_intent": "change",
+    "expected_task_type": "feature",
     "expected_mode": "standard"
   },
   {
     "id": "compatible-api-extension",
     "summary": "为现有 API 增加兼容性可选字段",
     "facts": {
+      "requested_change": true,
+      "feature_or_behavior": true,
       "clear_acceptance": true,
       "localized_change": false,
       "consumers_known": true,
       "no_boundary_change": false,
       "easy_rollback": true,
       "direct_validation": true,
-      "no_design_tradeoff": true
+      "no_design_tradeoff": true,
+      "contract_gate": true
     },
-    "expected_mode": "standard"
+    "expected_intent": "change",
+    "expected_task_type": "feature",
+    "expected_mode": "standard",
+    "expected_gates": ["contract"]
   },
   {
     "id": "database-backfill",
     "summary": "新增字段并回填历史订单数据",
     "facts": {
-      "clear_acceptance": true,
-      "localized_change": false,
-      "consumers_known": true,
-      "no_boundary_change": false,
-      "easy_rollback": false,
-      "direct_validation": false,
-      "no_design_tradeoff": false,
+      "requested_change": true,
+      "migration_or_infrastructure": true,
       "schema_migration": true,
-      "data_backfill": true
+      "data_backfill": true,
+      "data_gate": true,
+      "release_gate": true,
+      "observability_gate": true
     },
-    "expected_mode": "governed"
+    "expected_intent": "change",
+    "expected_task_type": "migration-infrastructure",
+    "expected_mode": "governed",
+    "expected_gates": ["data", "release", "observability"]
   },
   {
     "id": "payment-read-only-copy",
     "summary": "支付结果页只修改提示文案，不改变资金语义",
     "facts": {
+      "requested_change": true,
+      "maintenance_only": true,
       "clear_acceptance": true,
       "localized_change": true,
       "consumers_known": true,
@@ -85,28 +108,32 @@
       "no_design_tradeoff": true,
       "critical_semantics_changed": false
     },
+    "expected_intent": "change",
+    "expected_task_type": "maintenance",
     "expected_mode": "fast"
   },
   {
     "id": "cross-service-contract-break",
     "summary": "不兼容事件字段变更，需要三个服务协调发布",
     "facts": {
-      "clear_acceptance": true,
-      "localized_change": false,
-      "consumers_known": true,
-      "no_boundary_change": false,
-      "easy_rollback": false,
-      "direct_validation": false,
-      "no_design_tradeoff": false,
+      "requested_change": true,
+      "feature_or_behavior": true,
       "incompatible_public_contract": true,
-      "coordinated_release": true
+      "coordinated_release": true,
+      "contract_gate": true,
+      "release_gate": true
     },
-    "expected_mode": "governed"
+    "expected_intent": "change",
+    "expected_task_type": "feature",
+    "expected_mode": "governed",
+    "expected_gates": ["contract", "release"]
   },
   {
-    "id": "unknown-consumers",
-    "summary": "共享库修改但消费者尚未查清",
+    "id": "unknown-shared-consumers",
+    "summary": "共享库结构重构但消费者尚未查清",
     "facts": {
+      "requested_change": true,
+      "refactor_only": true,
       "clear_acceptance": true,
       "localized_change": true,
       "consumers_known": false,
@@ -115,27 +142,31 @@
       "direct_validation": true,
       "no_design_tradeoff": true
     },
+    "expected_intent": "change",
+    "expected_task_type": "refactor",
     "expected_mode": "standard"
   },
   {
     "id": "global-security-default",
     "summary": "修改全局 CSP 默认策略",
     "facts": {
-      "clear_acceptance": true,
-      "localized_change": true,
-      "consumers_known": false,
-      "no_boundary_change": false,
-      "easy_rollback": true,
-      "direct_validation": false,
-      "no_design_tradeoff": false,
-      "global_security_or_infrastructure": true
+      "requested_change": true,
+      "upgrade_or_configuration": true,
+      "global_security_or_infrastructure": true,
+      "security_gate": true,
+      "infrastructure_gate": true
     },
-    "expected_mode": "governed"
+    "expected_intent": "change",
+    "expected_task_type": "upgrade-config",
+    "expected_mode": "governed",
+    "expected_gates": ["security", "infrastructure"]
   },
   {
-    "id": "test-only-refactor",
+    "id": "test-only-maintenance",
     "summary": "机械整理单个测试文件，不改变生产行为",
     "facts": {
+      "requested_change": true,
+      "maintenance_only": true,
       "clear_acceptance": true,
       "localized_change": true,
       "consumers_known": true,
@@ -144,6 +175,55 @@
       "direct_validation": true,
       "no_design_tradeoff": true
     },
+    "expected_intent": "change",
+    "expected_task_type": "maintenance",
     "expected_mode": "fast"
+  },
+  {
+    "id": "understand-project",
+    "summary": "理解当前项目，不进行修改",
+    "facts": {},
+    "expected_intent": "explain",
+    "expected_task_type": null,
+    "expected_mode": null
+  },
+  {
+    "id": "diagnose-login-only",
+    "summary": "诊断登录失败但不要修复",
+    "facts": {
+      "requested_diagnosis": true,
+      "bug_or_failure": true,
+      "critical_semantics_changed": true,
+      "security_gate": true
+    },
+    "expected_intent": "diagnose-only",
+    "expected_task_type": "bug",
+    "expected_mode": null,
+    "expected_gates": ["security"]
+  },
+  {
+    "id": "review-current-diff",
+    "summary": "评审当前 diff，不修改",
+    "facts": {
+      "requested_review": true
+    },
+    "expected_intent": "review",
+    "expected_task_type": null,
+    "expected_mode": null
+  },
+  {
+    "id": "plan-migration-only",
+    "summary": "制定数据库迁移计划但不实施",
+    "facts": {
+      "requested_plan": true,
+      "migration_or_infrastructure": true,
+      "schema_migration": true,
+      "data_gate": true,
+      "release_gate": true
+    },
+    "expected_intent": "plan-only",
+    "expected_task_type": "migration-infrastructure",
+    "expected_mode": null,
+    "expected_gates": ["data", "release"]
   }
 ]
