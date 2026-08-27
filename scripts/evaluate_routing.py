@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run maintainer calibration cases for the V3.2 composable router."""
+"""运行 V3.2 可组合路由器的维护校准案例。"""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ GATE_FACTS = {
 
 
 def classify_intent(facts: dict[str, bool]) -> str:
-    """Classify authorization intent; an explicit implementation request wins."""
+    """识别用户的授权意图；明确要求实施时，以修改意图为准。"""
     if facts.get("requested_change", False):
         return "change"
     if facts.get("requested_plan", False):
@@ -54,7 +54,7 @@ def classify_intent(facts: dict[str, bool]) -> str:
 
 
 def classify_task_type(facts: dict[str, bool]) -> str | None:
-    """Select the primary method family independently from risk mode."""
+    """独立于风险模式，选择任务的主要方法类型。"""
     if facts.get("migration_or_infrastructure", False):
         return "migration-infrastructure"
     if facts.get("bug_or_failure", False):
@@ -71,7 +71,7 @@ def classify_task_type(facts: dict[str, bool]) -> str | None:
 
 
 def route(facts: dict[str, bool]) -> str:
-    """Route a change to a risk mode. Callers must classify intent first."""
+    """为修改类任务选择风险模式；调用方必须先识别用户意图。"""
     if any(facts.get(name, False) for name in GOVERNED_FACTS):
         return "governed"
     if all(facts.get(name, False) for name in FAST_FACTS):
@@ -86,7 +86,7 @@ def route_mode(facts: dict[str, bool]) -> str | None:
 
 
 def classify_specialized_gates(facts: dict[str, bool]) -> list[str]:
-    """Return specialized gates in stable execution order."""
+    """按照稳定的执行顺序返回需要启用的专项 Gate。"""
     return [gate for gate, signal in GATE_FACTS.items() if facts.get(signal, False)]
 
 

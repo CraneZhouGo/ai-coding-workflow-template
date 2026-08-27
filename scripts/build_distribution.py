@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a deterministic distribution archive from distribution-manifest.json."""
+"""根据 distribution-manifest.json 构建内容可复现的发行压缩包。"""
 
 from __future__ import annotations
 

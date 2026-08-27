@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the V3.2 Composable runtime and deterministic distribution."""
+"""校验 V3.2 可组合运行时及内容可复现的发行包。"""
 
 from __future__ import annotations
 
