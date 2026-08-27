@@ -1,0 +1,39 @@
+version: 1
+
+project:
+  name: "replace-me"
+  type: "unknown"
+  owners: []
+
+commands:
+  build: ""
+  unit_test: ""
+  integration_test: ""
+  static_analysis: ""
+  contract_test: ""
+  migration_dry_run: ""
+  migration_rollback: ""
+
+workflow:
+  allow_r1_fast_path: true
+  openspec_required_from: "R3"
+  plannotator_required_from: "R3"
+  metrics_path: ".claude/workflow-metrics/tasks.jsonl"
+  minimum_samples_for_tuning: 20
+
+risk_profile:
+  high_risk_semantics:
+    - "money movement"
+    - "inventory mutation"
+    - "authorization decision"
+    - "sensitive data handling"
+  compliance_domains: []
+
+delivery:
+  feature_flags: "unknown"
+  rollout_strategy: "unknown"
+  rollback_strategy: "unknown"
+  observability: "unknown"
+
+notes:
+  - "首次接入项目时，用代码库证据替换所有 unknown/空命令。"

@@ -2,125 +2,76 @@
 date created: 2026-08-25 11:55:06
 date modified: 2026-08-27
 ---
-# AI Coding Workflow Template
 
-这是一个可复制到 Java / Spring Boot / 微服务项目中的 AI Coding Workflow 模板。
+# AI Coding Workflow Template V2.1
 
-核心思想：
+这是一套可复制到 Java / Spring Boot / 微服务项目中的 AI Coding Workflow 模板。
 
-> 根据需求复杂度自动评估风险档 R1~R4，并叠加对应门控。
+核心模型：
+
+```text
+变更风险评分 → R1~R4 基础档位
+变更语义     → data/security/contract/... 门控
+交付特征     → Agent/worktree/rollout 策略
+```
+
+三者分别判断，最终工作流为基础门控与可组合门控的并集。
 
 ## Components
 
-- Claude Code：执行
-- Superpowers：Agent workflow（过程方法论）
-- OpenSpec：Specification Source of Truth（产物）
-- Plannotator：Human Review Gate（评审）
+- Claude Code：执行代码、命令、测试和 Git 操作
+- Superpowers：需求、计划、TDD、验证等过程方法
+- OpenSpec：首选规格 Source of Truth
+- Plannotator：首选 Plan/Code Human Review Gate
 
-工具职责边界一句话：
-
-> 产物归 OpenSpec、过程归 Superpowers、评审归 Plannotator、执行归 Claude Code。
+工具不可用时使用 Capability Check 定义的受控降级；门控不能静默消失。
 
 ## Risk Tiers
 
-### R1（Low）
+| 档位 | 定位 |
+|---|---|
+| R1 | 明确、局部、低运行时风险；严格条件下可走 Fast Path |
+| R2 | 常规功能或有限业务规则；紧凑规格 + 计划 + TDD + Review |
+| R3 | 显著业务/数据/架构/基础设施风险；设计和专项门控 |
+| R4 | 核心架构、不可逆迁移或协调发布；完整 S0~S9 |
 
-直接执行，最小改动。
+风险采用 7 个锚定维度，最高 36 分。协作和多 Agent 不参与风险分，而是进入 Delivery Profile。
 
-适合低风险、极小范围任务（明确小 Bug、文案、单点配置）。
+## Composable Gates
 
-### R2（Medium）
+按变更语义叠加：architecture、data、security、compliance、contract、infrastructure、delivery、observability、isolation。
 
-需求分析 + 代码探索 + OpenSpec（proposal/specs/tasks）+ Plan Review + TDD 实现 + Code Review。
-
-适合常规 Feature、新查询接口、CRUD 增强。
-
-### R3（High）
-
-OpenSpec（含 design.md）+ Plannotator Plan/Code Review + 规格/架构确认 + 集成/契约测试。
-
-适合订单状态机、日志基础设施集成、Schema 变更等中高风险需求。
-
-### R4（Critical）
-
-完整工程流程 + design.md/ADR + WBS 计划 + 多 Agent / 隔离 Worktree（必要时）+ 集成验证 + apply/archive + 发布审批。
-
-适合微服务拆分、核心架构重构、核心交易链路、数据迁移。
-
-## Tool Check
-
-路由输出风险档后、执行流程前，会检查该档所需工具是否可用，缺失则给出初始化引导（例如 R2+ 需要 OpenSpec 与 Plannotator，R4 需要 git worktree）。
-
-## Metrics
-
-每次任务完成后自动记录一条 Metrics 记录，可用 `/workflow-report` 汇总升级率、各档分布、返工率并给出调参建议。
+例如，位于支付模块的纯文案可以是 R1；真正改变支付状态语义时至少 R3，并叠加相应安全/合规门控。
 
 ## Quick Start
 
-1. 将 `.claude/` 和 `CLAUDE.md` 复制到项目根目录。
-2. 安装并启用 Superpowers。
-3. 初始化 OpenSpec。
-4. 安装/配置 Plannotator。
-5. 启动 Claude Code。
-6. 使用：
+1. 复制 `.claude/`、`CLAUDE.md` 和 `scripts/` 中的运行时脚本。
+2. 用真实代码库信息填写 `.claude/project-profile.yaml`。
+3. 安装并启用所需工具；OpenSpec/Plannotator 缺失时按 Capability Check 处理。
+4. 使用 `/new-task 你的需求`。
+5. 定期使用 `/workflow-report`。
+
+## Validation
 
 ```text
-/new-task 你的需求
+python scripts/validate_workflow.py --repository
+python scripts/record_workflow_metric.py --record <record.json> --dry-run
+python scripts/workflow_report.py
+python scripts/build_distribution.py
 ```
 
-7. 定期使用：
+验证脚本会检查评分基准、规则一致性和分发 manifest；CI 会构建并验证确定性 ZIP。
 
-```text
-/workflow-report
-```
+## Key Files
 
-## Example
+- `.claude/skills/workflow-router/SKILL.md`：路由主流程
+- `.claude/skills/workflow-router/v2/complexity-matrix.md`：评分锚点
+- `.claude/skills/workflow-router/v2/routing-rules.md`：语义红旗
+- `.claude/skills/workflow-router/v2/gates.md`：可组合门控目录
+- `.claude/skills/workflow-router/v2/toolcheck.md`：Capability Check
+- `.claude/project-profile.yaml`：项目画像
+- `.claude/skills/workflow-router/v2/metrics-schema.json`：Metrics Schema
+- `scripts/record_workflow_metric.py`：Metrics 校验与追加
+- `docs/superpowers/specs/2026-08-26-ai-coding-workflow-v2-design.md`：V2.1 设计
 
-```text
-/new-task 给订单增加30分钟自动取消功能
-```
-
-Router 会先评估复杂度，并自动执行 Tool Check。
-
-预期可能进入：
-
-```text
-R3
-```
-
-然后按照 R3 门控流程执行。
-
-## Existing Project
-
-对于已有项目，建议第一次先让 Claude Code：
-
-```text
-分析当前项目架构、模块边界、核心业务链路、测试方式和现有工程规范，
-并根据这些信息补充 CLAUDE.md 中的项目工程规则。
-```
-
-## New Project
-
-新项目建议：
-
-1. 创建 Git repository
-2. 初始化项目
-3. 安装 Claude Code
-4. 安装 Superpowers
-5. 初始化 OpenSpec
-6. 安装 Plannotator
-7. 复制本模板
-8. 完善 CLAUDE.md
-9. 用 `/new-task` 开始第一个需求
-
-## Important
-
-这个模板中的评分阈值和权重只是初始建议值。
-
-真正使用几十个需求后，应根据 `/workflow-report` 输出的实际数据调整：
-
-- Score thresholds
-- Weights
-- Red-flag rules
-- High-risk domains
-- Review gates
+评分阈值只是初始建议。至少积累项目画像配置的最小样本数后，再结合档位矩阵、升级信号、返工和 escaped defects 调整。

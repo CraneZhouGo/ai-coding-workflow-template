@@ -1,24 +1,25 @@
 ---
-description: 汇总 Workflow Metrics，输出升级率/误判提示，辅助调整评分与规则
+description: 汇总 JSONL Workflow Metrics，输出档位矩阵、返工、能力降级和有样本约束的调参建议
 ---
 
-# Workflow Report
+# Workflow Report v2.1
 
-读取 `.claude/workflow-metrics/tasks.md`，输出：
+## 首选执行
 
-## 报告内容
-1. 任务总数、各档（initial/final）分布
-2. 升级率：initial_tier < final_tier 的比例
-3. 误判提示：若升级率偏高（如 >30%），提示评分矩阵或红旗规则可能低估，建议调整 .claude/skills/workflow-router/v2/complexity-matrix.md 或 .claude/skills/workflow-router/v2/routing-rules.md
-4. 返工率与评审被拒率：过高则提示计划/评审门控需加强
-
-## 输出示例
 ```text
-Workflow Report
----------------
-total tasks: 12
-tier distribution (final): R1=3, R2=4, R3=4, R4=1
-upgrade rate: 33% (4/12)
-rework rate: 17%
-suggestion: upgrade rate high → review weighted score thresholds
+python scripts/workflow_report.py --metrics .claude/workflow-metrics/tasks.jsonl --minimum-samples 20
 ```
+
+若项目画像配置了其他 `metrics_path` 或 `minimum_samples_for_tuning`，使用项目画像值。
+
+## 输出要求
+
+1. 总任务数、completed/blocked。
+2. Initial → Final 档位矩阵和升级率。
+3. 各档平均交付时间、人工等待时间和返工率。
+4. 升级任务中最常见的高分维度和语义红旗。
+5. Capability degradation 与评审问题分布。
+6. escaped defect 率（只统计已知 true/false，排除 null）。
+7. 样本不足时明确写 `insufficient sample for tuning`，不得建议调整阈值。
+
+脚本不可用时可以直接读取 JSONL 生成同等报告，但不能退回旧 Markdown Metrics 格式。

@@ -1,0 +1,24 @@
+name: Validate workflow template
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Validate rules and calibration cases
+        run: python scripts/validate_workflow.py --repository
+      - name: Run workflow tool tests
+        run: python -m unittest discover -s tests -v
+      - name: Smoke-test empty metrics report
+        run: python scripts/workflow_report.py --metrics .claude/workflow-metrics/tasks.jsonl
+      - name: Build deterministic distribution
+        run: python scripts/build_distribution.py --output dist/ai-coding-workflow-template.zip
+      - name: Validate distribution manifest
+        run: python scripts/validate_workflow.py --repository --archive dist/ai-coding-workflow-template.zip

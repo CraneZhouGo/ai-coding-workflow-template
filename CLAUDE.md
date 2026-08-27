@@ -1,76 +1,64 @@
-# AI Coding Workflow Constitution
+# AI Coding Workflow Constitution v2.1
 
 ## 1. Purpose
 
-本项目采用“需求复杂度驱动”的 AI Coding Workflow：
+本项目采用“变更风险 + 可组合门控 + 交付策略”工作流：
 
 - R1：低风险
 - R2：中风险
 - R3：高风险
-- R4：极高风险（门控叠加）
+- R4：极高风险
 
-R1~R4 不是开发生命周期，而是根据需求复杂度选择不同强度的工作流。
+风险档不是生命周期。完整工程流程为 S0~S9，Router 按风险选择基础流程，再叠加数据、安全、合规、契约、基础设施、发布、可观测性和隔离门控。
 
-核心组件：
-
-- Claude Code：执行引擎
-- Superpowers：Agent 工作流能力
-- OpenSpec：Specification Source of Truth
-- Plannotator：Plan / Code 的人工 Review Gate
+核心职责：产物归 OpenSpec、过程归 Superpowers、评审归 Plannotator、执行归 Claude Code。工具不可用时按 Capability Check 使用有审计记录的替代路径，门控本身不能静默消失。
 
 ## 2. Global Rules
 
-1. 收到新需求后，优先进行 Workflow Assessment（评估风险档 R1~R4）。
-2. 不要求用户手动指定档位；默认自动判断。
-3. 若探索后发现实际复杂度高于初始判断，必须升级档位。
-4. 自动升级允许：R1→R2→R3→R4。
-5. 降级不允许静默发生；应向用户说明原因与风险变化并请求确认。
-6. 涉及核心交易、支付、库存、权限、数据迁移、基础设施（日志/监控/安全）、跨服务一致性或架构变更时，不能仅凭代码改动数量判断复杂度。
-7. R2 及以上在开始编码前必须有明确实现计划，并通过人工 Plan Review。
-8. 确认点全标配：任何任务都必须有人工确认（计划确认 + 变更过目），工具强度按风险档分级。
-9. 完成后必须验证；高风险变更必须再次进行代码 Review。
-10. 不要为了流程而流程：简单任务不要强行套用完整流程。
-11. 不要为了省流程而省流程：高风险任务不得降级为简单执行。
-12. 每次任务完成按 `.claude/skills/workflow-router/v2/metrics.md` 记录 Metrics。
-13. 所有结论必须基于当前代码库实际情况，而不是假设。
-14. 修改 workflow 模板自身（SKILL.md / gates / v2 / commands）时，完成前必须交叉核对 design spec（`docs/superpowers/specs/`）与实现：spec 定义的每个阶段（S0~S9）的产物/工具/人工 Gate，都必须在 `gates/R{n}.md` 或 `SKILL.md` 找到对应落地；反之 gate 出现的流程也必须有 spec 出处，不允许任一侧有孤悬项。
+1. 新需求先读取 `.claude/project-profile.yaml` 并执行 Workflow Assessment。
+2. 按 `.claude/skills/workflow-router/v2/complexity-matrix.md` 的 7 个锚定维度评估变更本身，不能凭目录名、业务关键词或文件数量猜测。
+3. Collaboration、多 Agent、worktree 和跨团队协作属于 Delivery Profile，不计入风险总分。
+4. 按语义红旗计算最低安全档；支付、库存等领域中的纯文案不自动升档，改变其核心业务语义时不得降档。
+5. 最终工作流等于基础档位门控与 required gates 的并集；同一产物不重复创建。
+6. 探索后、修改公共契约/Schema/权限/部署配置前、diff 扩大时和发布前必须重新评估。
+7. 升级自动发生；降级必须说明评分变化、移除门控和残余风险，并请求确认。
+8. R1 只有满足 `gates/R1.md` 和项目画像全部条件时才能走 Fast Path；否则先确认计划。
+9. R2 的规格或评审能力可以使用已定义的安全降级并记录；R3/R4 的降级必须先获得用户明确批准。
+10. required data/security/compliance/contract/delivery/observability gate 不得因工具缺失而省略。
+11. R4 或协调发布必须定义 Feature Flag/灰度策略、可信回滚、监控基线、告警阈值、观察窗口和停止条件。
+12. 多 Agent 仅在 DAG 拆出至少两个无共享状态、可独立测试的批次时启用；否则单 Agent 串行。
+13. 完成前必须验证实现、规格、required gates 和最终 diff；不得把未执行的检查描述为通过。
+14. 每次任务向 `.claude/workflow-metrics/tasks.jsonl` 追加符合 schema 的 Metrics，不记录秘密或个人数据。
+15. 修改工作流模板自身时，必须运行 `python scripts/validate_workflow.py`，并交叉核对 design spec、Router、levels、gates、命令和用户指南。
 
 ## 3. Workflow Selection
 
-先加载：
+统一入口：`.claude/commands/new-task.md`。
 
-`.claude/skills/workflow-router/SKILL.md`
+执行顺序：
 
-再根据判断结果加载：
+1. `.claude/skills/workflow-router/SKILL.md`
+2. `.claude/skills/workflow-router/v2/complexity-matrix.md`
+3. `.claude/skills/workflow-router/v2/routing-rules.md`
+4. `.claude/skills/workflow-router/v2/gates.md`
+5. `.claude/skills/workflow-router/v2/toolcheck.md`
+6. `.claude/skills/workflow-router/v2/levels.md`
+7. `.claude/skills/workflow-router/gates/R{n}.md`
 
-`.claude/skills/workflow-router/gates/R1.md`
-`.claude/skills/workflow-router/gates/R2.md`
-`.claude/skills/workflow-router/gates/R3.md`
-`.claude/skills/workflow-router/gates/R4.md`
+## 4. Project Engineering Profile
 
-## 4. Project Engineering Rules
-
-以下规则由具体项目继续补充：
-
-- Java version:
-- Spring Boot version:
-- Spring Cloud version:
-- Build tool:
-- Database:
-- Cache:
-- MQ:
-- Registry:
-- Observability:
-- Test framework:
+技术栈、构建、测试、迁移、风险领域和发布能力维护在 `.claude/project-profile.yaml`。首次接入真实项目时，必须用代码库证据替换空命令和 `unknown`，不能保留未经验证的假设。
 
 ## 5. Completion Requirements
 
-任何级别的任务都必须在完成前回答：
+每次完成必须报告：
 
-- What changed?
-- Why was it changed?
-- What tests were run?
-- What remains unverified?
-- Were there unexpected side effects?
+- What changed and why?
+- Initial tier、final tier、score 和 required gates 是什么？
+- Delivery Profile 和 Capability Check 结果是什么？
+- 执行了哪些测试、评审、迁移和发布验证？
+- 哪些能力发生降级，谁批准了替代路径？
+- 什么仍未验证，剩余风险和意外副作用是什么？
+- Metrics 是否成功追加？
 
-不得在没有实际验证的情况下声称“已完成”。
+不得在没有实际证据的情况下声称“已完成”或“可发布”。

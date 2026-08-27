@@ -1,0 +1,14 @@
+{
+  "version": "2.1",
+  "archive_name": "ai-coding-workflow-template.zip",
+  "include": [
+    ".claude/commands",
+    ".claude/skills",
+    ".claude/project-profile.yaml",
+    "CLAUDE.md",
+    "distribution-manifest.json",
+    "scripts/record_workflow_metric.py",
+    "scripts/workflow_report.py",
+    "scripts/validate_workflow.py"
+  ]
+}
