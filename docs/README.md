@@ -1,6 +1,6 @@
-# AI Coding Workflow Template V3.2.2 Composable
+# AI Coding Workflow Template V3.3 Deterministic Composable
 
-这是一个面向 Claude Code 的薄编排模板。它不重新实现 Superpowers、OpenSpec 或 Plannotator，而是先识别意图，再把任务方法、风险保障和专项 Gate 自动组合成一次任务真正需要的流程。
+这是一个面向 Claude Code 的薄编排模板。AI 只负责从需求和代码库提取结构化事实；Node runtime 是路由、节点顺序、状态迁移和 Review 范围的唯一执行源，避免同一需求在不同回合走出不同流程。
 
 ```text
 Intent → Task Type → Risk Mode → Specialized Gates → Ordered Execution
@@ -12,91 +12,69 @@ Final workflow
 + Specialized Gates
 ```
 
-用户只需描述需求，或使用：
+用户只需描述需求，或执行 `/new-task <需求>`。
 
-```text
-/new-task <需求>
-```
+## 路由模型
 
-## Four routing dimensions
-
-| 维度 | 选项 | 决定什么 |
+| 维度 | 选项 | 职责 |
 |---|---|---|
-| Intent | explain / review / diagnose-only / plan-only / change | 是否获得修改授权 |
-| Task Type | Feature / Bug / Refactor / Upgrade-Config / Migration-Infrastructure / Maintenance | 使用哪组 Superpowers 方法 |
-| Risk Mode | Fast / Standard / Governed | OpenSpec、评审、隔离和验证强度 |
-| Specialized Gates | data / security / contract / infrastructure / release / observability | 需要补充哪些风险证据 |
+| Intent | explain / review / diagnose-only / plan-only / change | 判断是否有修改授权 |
+| Task Type | Feature / Bug / Refactor / Upgrade-Config / Migration-Infrastructure / Maintenance | 选择 Superpowers 方法 |
+| Risk Mode | Fast / Standard / Governed | 决定 OpenSpec、隔离、验证与人工 Review 强度 |
+| Specialized Gates | data / security / contract / infrastructure / release / observability | 添加领域风险证据 |
 
-这解决了固定模式链的错配：普通 Feature 走 brainstorming、规格和 TDD；Bug 先 systematic-debugging、根因证据和失败回归测试；重构先建立行为基线；升级先查 changelog 与兼容性；迁移先做影响、回滚和 dry-run。
+Feature 最低 Standard，确保 `brainstorming` 和设计批准不会被 Fast 跳过。Bug 先执行 `systematic-debugging`；重构先建立行为基线；升级先查官方变更记录；迁移先设计回滚、dry-run 和分批执行。
 
-## Three risk modes
+| 模式 | 使用条件 | OpenSpec | Plannotator | 验证 |
+|---|---|---|---|---|
+| Fast | 项目画像 ready、非 Feature，且全部低风险事实成立 | 不创建 change | 无预定 Gate | targeted |
+| Standard | 普通修改默认 | propose → apply-change → strict validate → archive | 一次 OpenSpec Spec Diff Review | affected |
+| Governed | 任一高风险事实触发 | Standard 生命周期 + 高影响探索 | Spec Diff + Code Diff Review | full |
 
-| 模式 | 准入与保障 | OpenSpec | Plannotator |
-|---|---|---|---|
-| Fast | 全部低风险条件成立；最窄探索和直接验证 | 不创建新 change | 无预定 Gate |
-| Standard | 普通修改的默认安全网 | Agent propose/apply-change + CLI validate/archive + workflow-state | 一次 OpenSpec Spec Diff Review |
-| Governed | 高风险事实触发；完整交付证据与隔离 | explore + Standard 生命周期与状态 | Spec Diff + Code Diff Review |
+## 连续执行
 
-模式不再规定固定业务节点。Standard Feature 和 Standard Bug 共享相同保障，但使用不同 Task Method。专项 Gate 可叠加，不需要新增第四种模式。
-
-## Continuous execution and resume
-
-Route Card 只是通知。Router 不会询问是否采用模式，也不会在内部节点间逐步确认。Standard 唯一预定暂停点是 OpenSpec Spec Diff Review；Governed 再增加实施后的 Code Diff Review。
-
-Standard/Governed 会在当前 OpenSpec change 内维护：
+每次路由生成稳定的 `route_fingerprint`，节点组合生成 `workflow_hash`。所有 change 都持久化状态：
 
 ```text
-openspec/changes/<change-id>/workflow-state.yaml
+Fast:                .claude/workflow-runs/<route-fingerprint>/workflow-state.json
+Standard/Governed:   openspec/changes/<change-id>/workflow-state.json
 ```
 
-它记录 intent、task type、mode、gates、ordered nodes、Git review base、状态、证据和 Spec Diff Review 已批准规划工件的 SHA-256。对话中断后从最早未完成节点继续；规划工件变化时自动重新打开 diff。
+`SessionStart` 恢复唯一活动任务，`PreToolUse` 阻止规划阶段越界修改，`PreCompact` 原子保存状态，`Stop` 在仍有可执行 REQUIRED 节点时阻止提前结束。Route Card 只是通知；Standard 只在 Spec Diff Review 暂停，Governed 额外在 Code Diff Review 暂停。
 
-## Tool ownership
+OpenSpec 规划 Review 不再手动拼接文档。Runtime 从 Git 捕获当前 change 的真实文件列表和 SHA-256，Plannotator 必须使用 `uncommitted` 视图展示同一组文件；代码 Review 使用 `since-base`。批准后的稳定规划文件发生变化时，流程自动回到 Diff Review。
 
-- Superpowers：提供 brainstorming、systematic-debugging、planning、TDD、review、verification 等方法。
-- OpenSpec：保存规格、任务与编排状态；`/opsx:apply` 或 `openspec-apply-change` 是 Agent 实施入口，不是终端 CLI。
-- Plannotator：通过 `/plannotator-review` 的文件树和逐行 diff 承载 OpenSpec 文档与代码评审。
-- Claude Code：执行探索、编辑、命令、测试、Git 与工具交接。
+## 安装
 
-Integration Adapter Contract 会合并工具默认流程中的重复批准和重复文档；OpenSpec 子流程的 stop/ready 只返回 Router，后续节点自动继续。
-
-Spec Diff Gate 前，Router 会记录 Git baseline；若存在用户原有修改则先进入隔离 worktree。OpenSpec 文档生成后，只有 `openspec/changes/<change-id>/**` 可以出现在当前 diff，再调用 `/plannotator-review` 直接展示变化文件。不会创建 Review Packet，也不会手动拼接文档正文。
-
-OpenSpec 入口严格区分：
+1. 把发行压缩包解压到业务项目根目录；已有 `CLAUDE.md` 或 `.claude/settings.json` 时合并，不覆盖项目规则。
+2. 填写 `.claude/project-profile.yaml` 的项目事实和真实验证命令，完成后设置 `profile_status: "ready"`。
+3. 安装 Superpowers、OpenSpec、Plannotator；执行 `openspec init` 并选择 Claude Code。
+4. 幂等安装生命周期 Hook：
 
 ```text
-/opsx:apply <change-id>                         # Claude Code Agent command
-openspec-apply-change                           # 生成的 Agent skill
-openspec instructions apply --change <id> --json # 官方 CLI fallback
-openspec apply                                  # 不存在，禁止调用
+node .claude/scripts/workflow-runtime.mjs install-hooks
 ```
 
-## Business package
+5. 重启 Claude Code，使用 `/new-task <需求>`。
 
-分发包仍只有 6 个运行时文件：
+## 发行包文件
 
-```text
-CLAUDE.md
-.claude/project-profile.yaml
-.claude/skills/new-task/SKILL.md
-.claude/skills/workflow-router/SKILL.md
-.claude/skills/workflow-router/ROUTING.md
-.claude/skills/workflow-router/PLAYBOOKS.md
-```
+| 文件 | 运行时用途 | 何时使用 |
+|---|---|---|
+| `CLAUDE.md` | 稳定授权、边界和完成标准 | 每次会话自动读取 |
+| `.claude/project-profile.yaml` | 项目命令、风险位置、运行能力 | 首次接入填写；项目变化时更新 |
+| `.claude/skills/new-task/SKILL.md` | 单一任务入口 | 用户调用 `/new-task` 时 |
+| `.claude/skills/workflow-router/SKILL.md` | 事实提取与工具编排 | 每个任务自动加载 |
+| `ROUTING.md` | Intent、Task Type、模式与 Gate 判据 | 路由时按需读取 |
+| `PLAYBOOKS.md` | 节点语义和三个工具的交接合同 | 只读取本次相关章节 |
+| `.claude/scripts/workflow-runtime.mjs` | 确定性路由、状态机、Review 校验和 Hook | Agent 自动调用；安装 Hook 时手动运行一次 |
+| `.claude/workflow-state.schema.json` | 状态文件结构合同 | runtime/CI 校验时 |
+| `.claude/hooks/workflow-hooks.json` | 待合并的 Claude Code Hook 配置 | `install-hooks` 使用 |
+| `.claude/workflow-runs/.gitignore` | 忽略 Fast 临时状态 | 自动生效 |
 
-业务项目不会收到 Python、测试、评测案例或模板 CI。
+维护仓库中的 Python、测试、评测案例和 CI 不进入业务发行包。
 
-## Setup
-
-1. 将分发包解压到项目根目录；已有 `CLAUDE.md` 时合并规则，不直接覆盖项目约定。
-2. 填写 `.claude/project-profile.yaml` 的真实验证命令、关键目录、风险和交付能力。
-3. 安装 Superpowers、OpenSpec 和 Plannotator，并重启 Claude Code。
-4. 执行 `openspec init` 并选择 Claude Code；OpenSpec 升级后执行 `openspec update`。
-5. 使用 `/new-task <需求>`；Router 自动分类、组合、执行和续跑。
-
-详细行为见项目根目录《AI Coding Workflow Template 详细使用说明》。
-
-## Maintainer validation
+## 维护者验证
 
 ```text
 python -B scripts/validate_workflow.py
@@ -105,3 +83,5 @@ python -B -m unittest discover -s tests -v
 python -B scripts/build_distribution.py
 python -B scripts/validate_workflow.py --archive ai-coding-workflow-template.zip
 ```
+
+详细行为见项目根目录《AI Coding Workflow Template 详细使用说明》。

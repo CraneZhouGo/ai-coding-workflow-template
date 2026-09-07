@@ -1,6 +1,6 @@
-# Composable Execution Playbooks — V3.2.2
+# Deterministic Composable Execution Playbooks — V3.3
 
-Router 从本文件选择节点并去重，生成一次任务的 ordered workflow。`REQUIRED` 不可静默跳过；原生能力必须实际调用，不能用文字声称替代。
+本文件定义节点语义；`.claude/scripts/workflow-runtime.mjs` 负责选择、排序、冻结和推进节点。`REQUIRED` 不可静默跳过；原生能力必须实际调用，不能用文字声称替代。
 
 ```text
 Core Spine + Task Method + Risk Safeguards + Specialized Gates
@@ -25,6 +25,7 @@ Core Spine + Task Method + Risk Safeguards + Specialized Gates
 - 只调用与 Task Method 实际匹配的原生 skill；Standard Bug 不因模式名称而强制执行 Feature brainstorming。
 - Feature 的 `brainstorming` 必须包含项目探索、必要澄清、方案取舍、推荐方案和完整设计。
 - brainstorming 默认的逐段设计批准、独立 spec review 和 writing-plans 的额外批准，统一合并到当前工作流唯一一次 OpenSpec Spec Diff Review。
+- Feature 最低为 Standard；不得在无人工 Gate 的 Fast 中调用需要设计批准的完整 brainstorming。
 - brainstorming 与 writing-plans 不创建 `docs/superpowers/` 副本，不自动提交；持久设计和任务写入唯一 OpenSpec change。
 - OpenSpec apply-change 是实施阶段外层入口；Superpowers 的 systematic-debugging、TDD、executing-plans、verification 和 review 是其内部实施方法，不再作为第二个并列执行器重复整批任务。
 - executing-plans 的 checkpoint 是非阻塞进度更新；finishing-a-development-branch 不自动 merge/commit/push/cleanup。
@@ -38,20 +39,22 @@ Core Spine + Task Method + Risk Safeguards + Specialized Gates
 | Propose | `/opsx:propose` 或宿主生成的 propose skill | 创建 change 与规划工件 |
 | Apply | `/opsx:apply <change-id>` 或 `openspec-apply-change` skill | 进入实施阶段、读取 tasks、更新任务状态 |
 | Apply instructions fallback | `openspec instructions apply --change <change-id> --json` | 原生 Agent 入口不可用时获取官方实施指令 |
-| Status/Validate/Archive | `openspec status`、`openspec validate`、`openspec archive` | CLI 状态、校验和归档 |
+| Status/Validate/Archive | `openspec status`、`openspec validate --strict --no-interactive`、`openspec archive --yes` | CLI 状态、严格校验和无人值守归档 |
 
 - 终端命令 `openspec apply` 不存在，禁止尝试或把“Router 开始改代码”记作 apply 已完成。
 - 能力探测顺序固定为 `/opsx:apply` → `openspec-apply-change` → `openspec instructions apply`。前两项名称可随宿主适配器变化，但必须来自 `openspec init/update` 生成的当前能力。
 - apply-change 负责加载 change、确认工件就绪、选择未完成 tasks、调用对应 Superpowers 实施方法并更新 tasks；返回 Router 后再执行统一验证和 Review。
+- `/opsx:verify` 仅在当前 OpenSpec profile 已生成该能力时追加；否则使用项目验证和 CLI strict validate，不伪造调用。
+- 纯重构、文档、测试或工具链 change 没有 spec delta 时，在 `.openspec.yaml` 声明 `skip_specs: true`，不依赖临时 archive 参数掩盖模型错误。
 - `propose`、apply-change、archive 子工作流的 `stop` 或 `ready for next command` 只表示返回父 Router，不结束 `/new-task`。
-- workflow-state 是编排器 sidecar，不复制 proposal/spec/design/tasks。
+- `workflow-state.json` 是编排器 sidecar，不复制 proposal/spec/design/tasks。
 
 ### Plannotator adapter
 
 - Standard/Governed 的规划 Gate 不使用 ExitPlanMode Plan Review，也不拼接 `tool_input.plan`。
-- 规划完成后显式调用 `/plannotator-review`，让 Plannotator Code Review 界面直接显示 OpenSpec 文件树和逐行 diff。
+- 规划完成后显式调用 `/plannotator-review`，明确选择 `uncommitted` 视图，让界面直接显示 OpenSpec 文件树和逐行 diff。
 - Standard 的 Spec Diff Review 批准当前 change 的 proposal/specs/design/tasks、测试与专项 Gate；Governed 还覆盖迁移、回滚、发布和停止条件。
-- Governed 的 Code Diff Review 在实施验证完成后再次调用 `/plannotator-review`，评审全部实际代码 diff 和交付风险。
+- Governed 的 Code Diff Review 在实施验证完成后再次调用 `/plannotator-review`，使用 `since-base` 视图评审完整 PR 形态 diff 和交付风险。
 
 ## OpenSpec Spec Diff Review contract
 
@@ -59,23 +62,23 @@ Core Spine + Task Method + Risk Safeguards + Specialized Gates
 
 1. **P-SD1 REQUIRED — capture-review-base**：在任何规划文件写入前记录 HEAD、branch、tracked/untracked changed paths；工作区存在用户原有修改时，先创建隔离 worktree，不得借助 staging/reset 隐藏原有改动。
 2. **P-SD2 REQUIRED — discover-artifacts**：运行 `openspec status --change <change-id> --json`，确认 schema 要求的 proposal/specs/design/tasks 等工件 ready。
-3. **P-SD3 REQUIRED — enforce-diff-scope**：获取当前 tracked 与 untracked diff 文件；所有路径必须位于 `openspec/changes/<change-id>/**`。出现业务代码、其他 change 或无关文件时先隔离/修复，不能进入 Gate。
-4. **P-SD4 REQUIRED — hash-planning-artifacts**：对稳定规划工件计算 SHA-256 并写入 workflow-state；workflow-state 自身不参与失效哈希。
-5. **P-SD5 HUMAN GATE — plannotator-spec-diff-review**：显式调用 `/plannotator-review`，由文件树和逐行 diff 展示本次 OpenSpec 变化；批准后记录 review base、文件路径、SHA-256、评审时间和状态。
+3. **P-SD3 REQUIRED — enforce-diff-scope**：调用 runtime `capture-spec-diff` 获取 tracked/untracked 文件；所有路径必须位于 `openspec/changes/<change-id>/**`。出现业务代码、其他 change 或无关文件时拒绝进入 Gate。
+4. **P-SD4 REQUIRED — hash-planning-artifacts**：runtime 对稳定规划工件按原始字节计算 SHA-256 并写入 workflow-state；workflow-state 自身不参与失效哈希。
+5. **P-SD5 HUMAN GATE — plannotator-spec-diff-review**：调用 `/plannotator-review` 并选择 `uncommitted` 视图；批准前将界面 displayed paths 传给 runtime `review --type spec`，必须与 expected paths 完全一致。
 
 禁止创建额外 Review Packet，禁止把 OpenSpec 文档全文手动拼入 Plan Review。若 `/plannotator-review` 无法展示 untracked change 文件或 diff 中无法排除无关修改，属于能力降级，必须先修复隔离环境或暂停说明。
 
-Gate 后任何已评审稳定规划工件的哈希变化都会使 `spec_review.status` 变为 stale；实施前必须重新运行 diff-scope check 并再次打开 Spec Diff Review。
+Gate 后任何已评审稳定规划工件的哈希变化都会使 `spec_review.status` 变为 stale；runtime 会阻止 C5 开始并自动退回 S-DF1。
 
 ## Core Spine
 
-1. **C1 REQUIRED — intake-and-route**：确认 intent、task type、mode、gates、验收和授权边界，输出 Route Card。
+1. **C1 REQUIRED — intake-and-route**：提取 route facts，调用 runtime route/compose，输出含 route fingerprint 和 execution policy 的 Route Card。
 2. **C2 REQUIRED — capability-baseline-and-isolation**：读取最窄相关代码和验证命令；在任何规划写入前记录 Git baseline，存在原有修改时先进入隔离 worktree。
-3. **C3 REQUIRED — compose-ledger**：按 phase 展开并去重 ordered workflow；Standard/Governed 在 propose 后持久化账本。
+3. **C3 REQUIRED — compose-ledger**：由 runtime 按 phase 展开、去重并计算 workflow hash；Standard/Governed 在 propose 后持久化 schema v2 账本。
 4. **C4 REQUIRED — planning-method**：执行 Task Method 的 planning 节点，不写生产代码、测试文件，不执行有副作用的 dry-run。
 5. **C5 REQUIRED — spec-diff-review-and-implementation-entry**：Standard/Governed 完成 OpenSpec diff scope 检查和 Spec Diff Review，再调用 OpenSpec apply-change；Fast 直接进入 implementation。
 6. **C6 REQUIRED — verify-and-review**：运行 `verification-before-completion`、项目验证、专项 Gate 和 spec/code review；阻断问题修复后重新验证。
-7. **C7 REQUIRED — validate-complete-archive**：先 `openspec validate <change-id>`，再将 workflow-state 标为 completed，最后 archive；完成 branch 收尾并报告。
+7. **C7 REQUIRED — archive-and-report**：Fast 直接完成报告；Standard/Governed 只在 `archive --yes` 成功、状态文件已进入 archive 目录后由 runtime 标记 completed，再完成 branch 收尾和报告。
 
 ## Task Method modules
 
@@ -127,39 +130,60 @@ brainstorming 只在根因明确后出现真实产品/架构取舍时追加。
 
 - 不创建新 OpenSpec change，不进入 Plan Mode。
 - 只执行 Core Spine、Task Method 和适用 Gate；出现设计取舍或边界变化立即升级。
-- Feature 若完全无设计取舍，可执行精简 brainstorming；一旦产生备选方案必须升级 Standard 并完成持久规格和 Spec Diff Review。
+- Feature 不进入 Fast；这保证 Superpowers brainstorming 的设计批准由 Standard Spec Diff Review 承载。
 
 ### Standard safeguards
 
 1. **S-WS0 REQUIRED — git-baseline-and-early-isolation [planning]**：执行 P-SD1；保证后续 OpenSpec diff 不混入用户原有修改。
 2. **S-OS1 REQUIRED — openspec:propose-and-state [planning]**：若 Task Method 尚未 propose，则调用原生 propose；创建 workflow-state。
 3. **S-PL1 REQUIRED — plan-readiness-check [planning]**：检查 AC、任务顺序、方法节点、测试、回滚和 Gate 覆盖。
-4. **S-DF1 REQUIRED — openspec-diff-scope-check [planning]**：执行 P-SD2 至 P-SD4，只允许当前 change 路径出现在 diff。
-5. **S-HG1 HUMAN GATE — plannotator-spec-diff-review**：执行 P-SD5；批准后自动继续，拒绝则修订文档并重新打开 diff。
+4. **S-DF1 REQUIRED — openspec-diff-scope-check [planning]**：执行 P-SD2 至 P-SD4；必须由 runtime 保存 expected paths 和 artifact hashes。
+5. **S-HG1 HUMAN GATE — plannotator-spec-diff-review**：执行 P-SD5；runtime 校验 `uncommitted` displayed paths 后才能批准，拒绝则修订并重新打开 diff。
 6. **S-IM1 REQUIRED — openspec-implementation-entry [implementation]**：按能力探测顺序调用 `/opsx:apply`、`openspec-apply-change` 或官方 instructions fallback；在该入口内执行 Task Method 的 implementation 节点和 Superpowers 方法。
-7. **S-RV1 REQUIRED — verification-and-ai-code-review**：执行项目验证、`verification-before-completion`、spec-compliance 和 code-quality AI review；Standard 默认不打开第二个人工 diff Gate。
-8. **S-FI1 REQUIRED — validate-complete-archive**：先 OpenSpec validate，再状态 completed，最后 archive 和 branch finish。
+7. **S-RV1 REQUIRED — verification-and-ai-code-review**：按 profile 的 affected 范围执行验证、`verification-before-completion`、spec-compliance 和独立 AI review；Standard 默认不打开第二个人工 Gate。
+8. **S-FI1 REQUIRED — validate-and-ready-to-archive**：运行可用的 `/opsx:verify`、项目验证和 `openspec validate <change-id> --strict --no-interactive`，通过后只把 archive_status 标为 ready，不提前 completed。
 
 ### Governed safeguards
 
 包含 Standard safeguards，并增强：
 
 1. **G-EX1 REQUIRED — openspec:explore [planning]**：调查高影响不确定性，结论进入当前 change。
-2. **G-IA1 REQUIRED — isolated-impact-analysis [planning]**：隔离架构/安全/数据/基础设施调查，主上下文只接收证据摘要。
+2. **G-IA1 REQUIRED — isolated-impact-analysis [planning]**：按实际 Gate 选择 architect/security/e2e 等专项 Reviewer 隔离调查，主上下文只接收证据摘要；不得默认启动全部 Agent。
 3. **G-PL1 REQUIRED — governed-plan-readiness [planning]**：补齐迁移、回滚、发布、观测和停止条件；全部写入当前 OpenSpec change。
 4. **G-WS0 REQUIRED — mandatory-early-worktree [planning]**：在任何 OpenSpec 写入前使用安全隔离 worktree，保证 Spec Diff Review 只包含当前任务。
 5. **G-IM1 REQUIRED — governed-openspec-apply-change [implementation]**：由 OpenSpec implementation entry 调度依赖图；仅并行低耦合任务，并在内部使用对应 Superpowers 方法。
-6. **G-RV1 REQUIRED — full-verification-and-review**：执行完整项目矩阵、OpenSpec validate 前置检查和全部专项 Gate。
-7. **G-HG1 HUMAN GATE — plannotator-code-diff-review**：验证通过后再次调用 `/plannotator-review`，评审实际代码 diff 和交付风险。
+6. **G-RV1 REQUIRED — full-verification-and-review**：执行 profile 完整验证矩阵、OpenSpec verify/validate 前置检查、全部专项 Gate 和隔离 AI Reviewer。
+7. **G-HG1 HUMAN GATE — plannotator-code-diff-review**：验证通过后再次调用 `/plannotator-review` 的 `since-base` 视图，并用 runtime `review --type code` 记录决定。
 
 ## Specialized Gate modules
 
-- **data Gate**：Schema 兼容、数据质量、样本 dry-run、备份/回滚、隐私和前后计数。
-- **security Gate**：威胁边界、认证/授权负向测试、秘密处理、依赖/静态安全检查和最小权限。
-- **contract Gate**：消费者清单、兼容矩阵、契约测试、版本策略和弃用路径。
-- **infrastructure Gate**：配置 diff、环境矩阵、资源/权限边界、可逆演练和故障恢复。
-- **release Gate**：发布顺序、feature flag/灰度、停止条件、回滚演练和责任交接。
-- **observability Gate**：关键日志/指标/追踪、告警阈值、仪表盘查询和运行手册验证。
+- **data Gate**：`X-DATA-P/V`；Schema 兼容、数据质量、样本 dry-run、备份/回滚、隐私和前后计数。
+- **security Gate**：`X-SECURITY-P/V`；威胁边界、认证/授权负向测试、秘密处理、安全检查和最小权限。
+- **contract Gate**：`X-CONTRACT-P/V`；消费者清单、兼容矩阵、契约测试、版本策略和弃用路径。
+- **infrastructure Gate**：`X-INFRASTRUCTURE-P/V`；配置 diff、环境矩阵、资源/权限边界、可逆演练和故障恢复。
+- **release Gate**：`X-RELEASE-P/V`；发布顺序、feature flag/灰度、停止条件、回滚演练和责任交接。
+- **observability Gate**：`X-OBSERVABILITY-P/V`；关键日志/指标/追踪、告警阈值、仪表盘查询和运行手册验证。
+
+每个 Gate 被拆为 planning 与 verification 两个确定性节点，只加载实际触发的 Gate 内容。
+
+## Parameterized verification and recovery
+
+验证命令只读取 `.claude/project-profile.yaml`，不得写死 npm、TypeScript、Python 或统一覆盖率阈值：
+
+- `targeted`：运行最直接测试和 diff check。
+- `affected`：运行受影响单元/集成测试、build/static analysis 和独立 AI review。
+- `full`：运行 profile 中全部适用验证、专项 Gate、回滚/发布证据和独立 AI review。
+
+验证失败不直接扩展业务范围，而是插入或复用与失败类型匹配的恢复方法：build/type failure → build-error-recovery；测试失败 → systematic-debugging；规格不一致 → 回到对应 planning 节点。修复后必须重跑原失败节点。
+
+## Hook enforcement contract
+
+- `SessionStart`：只注入活动 change、current node、phase 和状态路径，不加载整段历史。
+- `PreToolUse(Edit|Write)`：planning/human-gate 阶段只允许修改当前 OpenSpec change。
+- `PreCompact`：原子保存状态并增加 compaction count；不创建第二套 session 日志。
+- `Stop`：仍有可执行 REQUIRED 节点时阻止停止；人工 Gate、真实 blocked 或 stop_hook_active 时允许返回，避免无限循环。
+
+Hook 只执行快速确定性检查，不自动格式化、不运行全项目测试、不强制 tmux、不阻止 OpenSpec Markdown 文件。
 
 ## Composition examples
 
@@ -172,7 +196,8 @@ C1 → C2 + S-WS0 baseline/isolation → M-FE1 brainstorming
 → S-HG1 /plannotator-review: OpenSpec Spec Diff Review
 → S-IM1 /opsx:apply or openspec-apply-change
    └─ M-FE3 TDD + Superpowers execution methods + OpenSpec task updates
-→ S-RV1 → openspec validate → state completed → archive → C7
+→ S-RV1 → S-FI1 strict validate / archive ready
+→ openspec archive <change-id> --yes → runtime archive-complete → C7
 ```
 
 ### Standard Bug
@@ -183,7 +208,8 @@ C1 → C2 + S-WS0 baseline/isolation → M-BU1 systematic-debugging
 → S-DF1 OpenSpec-only diff → S-HG1 /plannotator-review: Spec Diff Review
 → S-IM1 OpenSpec implementation entry
    └─ M-BU3 failing-regression-test → M-BU4 minimal-fix → task updates
-→ S-RV1 → openspec validate → state completed → archive → C7
+→ S-RV1 → S-FI1 strict validate / archive ready
+→ openspec archive <change-id> --yes → runtime archive-complete → C7
 ```
 
 ### Governed Migration with data/release/observability Gates
@@ -195,52 +221,65 @@ C1 → C2 + G-WS0 mandatory worktree → G-EX1 → M-MI1 impact/rollback plan
 → G-IM1 OpenSpec apply-change
    └─ M-MI2 dry-run → M-MI3 staged execution → M-MI4 rollout verification
 → G-RV1 + gate evidence → G-HG1 /plannotator-review: Code Diff Review
-→ openspec validate → state completed → archive → C7
+→ S-FI1 strict validate / archive ready
+→ openspec archive <change-id> --yes → runtime archive-complete → C7
 ```
 
 ## Durable workflow state contract
 
-Standard/Governed 在 `openspec/changes/<change-id>/workflow-state.yaml` 使用以下最小结构：
+所有 change intent 都持久化 JSON 账本：Fast 使用 `.claude/workflow-runs/<route-fingerprint>/workflow-state.json`，Standard/Governed 使用 `openspec/changes/<change-id>/workflow-state.json`。文件必须通过 `.claude/workflow-state.schema.json` 和 runtime 语义校验。
 
-```yaml
-schema_version: 1
-intent: change
-task_type: bug
-mode: standard
-specialized_gates: []
-current_node: S-IM1
-status: active
-review_base:
-  head: "git commit sha"
-  branch: "branch name"
-spec_review:
-  status: approved
-  reviewed_at: "ISO-8601 timestamp"
-  artifacts:
-    - path: proposal.md
-      sha256: "hex digest"
-nodes:
-  - id: M-BU1
-    phase: planning
-    source: method
-    required: true
-    status: done
-    evidence: "reproduction command and failing output"
-updated_at: "ISO-8601 timestamp"
+```json
+{
+  "schema_version": 2,
+  "workflow_version": "3.3.0",
+  "profile_ready": true,
+  "route_fingerprint": "sha256",
+  "workflow_hash": "sha256",
+  "route": {
+    "intent": "change",
+    "task_type": "bug",
+    "current_mode": "standard",
+    "specialized_gates": []
+  },
+  "current_node": "S-IM1",
+  "status": "active",
+  "spec_review": {
+    "status": "approved",
+    "diff_type": "uncommitted",
+    "expected_paths": ["openspec/changes/fix-x/proposal.md"],
+    "artifact_hashes": [{"path": "openspec/changes/fix-x/proposal.md", "sha256": "sha256"}]
+  },
+  "nodes": [
+    {"id": "M-BU1", "phase": "planning", "source": "method", "required": true, "status": "done", "evidence": ["reproduction and failing output"]}
+  ]
+}
 ```
 
 约束：
 
 - `status` 只能是 `active | blocked | completed`；节点状态只能是 `pending | in_progress | done | N/A | blocked`。
-- propose 获得 change id 后创建；每个节点完成后、人工 Gate 前后、重路由后和中断前更新。
-- Spec Diff Review 批准后保存 review base 和稳定规划工件的 artifact hash 清单；任一哈希变化时将 `spec_review.status` 设为 stale，阻止 implementation entry，直到重新打开文件 diff。workflow-state 自身不参与该比较。
+- runtime `init-state` 创建账本；每个节点只允许按法定状态迁移，`done`/`N/A` 必须带 evidence。Fast 从 C1 起持久化，Standard/Governed 在获得 change id 后迁入 OpenSpec change。
+- Spec Diff Review 批准后保存 review base、expected paths 和稳定规划工件的 SHA-256；任一哈希变化时将 `spec_review.status` 设为 stale，阻止 C5/implementation entry，并自动退回 S-DF1。workflow-state 自身不参与该比较。
 - 续跑时从 ordered workflow 中最早的 pending/in_progress/blocked REQUIRED 节点继续；done 节点不重复，N/A 必须有 evidence。
-- 完成顺序固定为：项目验证与 Review → `openspec validate <change-id>` → status completed → `openspec archive <change-id>`。
-- Fast 只在当前对话维护账本；升级 Standard 后立即创建 OpenSpec change 和状态文件。
+- 只有 C2、规划结束、人工 Gate 前、implementation entry 前和 verification 前允许 `reroute`；风险只能自动升级，降级必须显式授权并写入 reroute history。
+- Standard/Governed 完成顺序固定为：项目验证与 Review → `openspec validate <change-id> --strict --no-interactive` → archive_status ready → `openspec archive <change-id> --yes` → archive 目录内执行 runtime `archive-complete` → status completed。
+- Fast 完成 C7 后直接 completed；升级 Standard 时保留已完成节点与证据，并创建 OpenSpec change 状态文件。
+
+## Selective specialist policy
+
+- architect：跨边界设计、模块拆分或高影响性能取舍时启用。
+- security reviewer：认证授权、秘密、外部输入或 security Gate 触发时启用。
+- e2e reviewer：关键用户旅程、跨服务流程或发布 Gate 触发时启用。
+- build-error recovery：只有 build/type/static analysis 失败后启用。
+- planner、TDD、debugging、code reviewer 已由 Task Method、Superpowers 或统一 Review 节点覆盖，不再并行启动同义 Agent。
+
+专项 Agent 只返回结论、证据和建议节点，不创建第二份计划、不改变 route、不自行提交。
 
 ## Native capability rule
 
 - 原生 Agent command/skill 可用时必须实际调用；不得用文字标签伪装调用完成。
 - `/opsx:apply` 是 Agent 命令，不是 CLI。终端只使用当前 CLI 确实提供的 status/instructions/validate/archive。
 - `/plannotator-review` 必须真实打开当前 VCS diff；不得以 ExitPlanMode Plan Review、文本摘要或手工拼接文档替代。
+- Node runtime、状态 schema 和 Hook 片段是实际执行契约；Hook 未安装时必须在 Route Card 标明 capability degraded，不能声称已自动续跑或阻止提前结束。
 - 能力恢复不需要用户确认；无法得到仅包含当前 OpenSpec change 的 diff，或实施入口只能被非官方方案替代时，才属于保障降级。

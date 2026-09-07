@@ -1,8 +1,12 @@
 {
-  "version": "3.2.2-composable",
+  "version": "3.3.0-deterministic-composable",
   "archive_name": "ai-coding-workflow-template.zip",
   "include": [
     ".claude/project-profile.yaml",
+    ".claude/scripts/workflow-runtime.mjs",
+    ".claude/workflow-state.schema.json",
+    ".claude/hooks/workflow-hooks.json",
+    ".claude/workflow-runs/.gitignore",
     ".claude/skills/new-task/SKILL.md",
     ".claude/skills/workflow-router/SKILL.md",
     ".claude/skills/workflow-router/ROUTING.md",

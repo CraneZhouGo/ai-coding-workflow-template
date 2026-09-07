@@ -1,8 +1,8 @@
-# AI Coding Workflow Constitution — V3.2.2 Composable
+# AI Coding Workflow Constitution — V3.3 Deterministic Composable
 
 ## Purpose
 
-本项目先识别用户意图，再按任务类型选择 Superpowers 方法、按风险选择 Fast/Standard/Governed 保障，并按专项风险叠加 Gate。
+本项目由 AI 提取事实，再由确定性 runtime 按任务类型选择 Superpowers 方法、按风险选择 Fast/Standard/Governed 保障，并按专项风险叠加 Gate。
 
 最终工作流不是固定清单，而是：
 
@@ -36,35 +36,39 @@ Core Spine + Task Method + Risk Safeguards + Specialized Gates
 
 ## Stable Rules
 
-1. 新任务先读取 `.claude/project-profile.yaml`，再加载 `workflow-router` skill。
+1. 新任务先读取 `.claude/project-profile.yaml`，再加载 `workflow-router` skill；画像不是 ready 时先自动补齐，期间禁止 Fast。
 2. 路由顺序固定为 `Intent → Task Type → Risk Mode → Specialized Gates → Ordered Execution`。
 3. `explain | review | diagnose-only | plan-only` 默认保持只读；只有 `change` 进入修改主链。诊断请求不得擅自修复。
 4. 风险模式和任务类型正交：模式决定保障强度，任务类型决定方法节点。文件数量、目录名和关键词不能单独决定任一项。
-5. 高风险触发器决定 Governed 下限；Fast 必须满足全部准入条件；其余修改默认 Standard。
+5. 高风险触发器决定 Governed 下限；Fast 必须满足全部准入条件且不得用于 Feature；其余修改默认 Standard。
 6. Feature 使用 brainstorming/spec/TDD；Bug 使用 systematic-debugging/根因证据/回归测试；Refactor、Upgrade/Config、Migration/Infrastructure 和 Maintenance 使用各自方法，不强制套用 Feature 链。
-7. Standard/Governed 必须执行组合后所有 REQUIRED 节点；不适用节点记录 `N/A + evidence`，不能静默跳过。
+7. `.claude/scripts/workflow-runtime.mjs` 是路由、节点顺序和状态转换的唯一执行源；AI 不得手工覆盖结果。所有 REQUIRED 节点必须有 evidence，不适用节点记录 `N/A + evidence`。
 8. Superpowers 管方法，OpenSpec 管持久化需求与流程状态，Plannotator 管人类决策，Claude Code 管执行；不得复制长期产物。
 9. 按 `PLAYBOOKS.md` 的 Integration Adapter Contract 整合工具：保留原生方法，但重复审批、独立设计/计划文件和自动提交由 Plannotator Gate、OpenSpec 单一事实源和本项目授权边界替代。
 10. OpenSpec 实施入口必须调用宿主生成的 `/opsx:apply <change-id>` 或 `openspec-apply-change` skill；终端不存在 `openspec apply`。只有原生入口不可用时，才使用 `openspec instructions apply --change <change-id> --json` 获取官方实施指令。
-11. Standard/Governed 的规划 Gate 使用 `/plannotator-review` 打开 OpenSpec Spec Diff Review，直接展示当前 change 的新增/修改文件；禁止通过 ExitPlanMode 手动拼接全文。Gate 前必须确认工作区 diff 只包含 `openspec/changes/<change-id>/**`，否则先隔离或消除无关变化。
+11. Standard/Governed 的规划 Gate 使用 `/plannotator-review` 的 `uncommitted` 视图打开 OpenSpec Spec Diff Review；runtime 必须校验 displayed paths 与 expected paths 相同。Governed 的 Code Diff Review 使用 `since-base` 视图。
 12. 子 skill/command 的 `stop`、`ready for next` 或完成消息只把控制权交还 Router；Router 自动持久化状态并调用下一节点。
-13. Standard/Governed 在 `openspec/changes/<change-id>/workflow-state.yaml` 保存节点账本、Git review base 和已评审规划工件哈希；新回合优先恢复最早未完成 REQUIRED 节点。Spec Diff Review 后规划工件哈希变化会使批准失效并重新打开文件 diff。
-14. 探索完成、发现公共契约/数据/权限/关键语义变化、diff 扩大和交付前重新路由；升级不需要确认。
+13. Standard/Governed 在 `openspec/changes/<change-id>/workflow-state.json` 保存 schema v2 节点账本、route/workflow hash、Git review base 和评审状态；SessionStart/PreCompact Hook 用它恢复，Stop Hook 阻止无理由提前结束。
+14. 只在规定检查点调用 runtime 重路由；必须保存新 facts 和 reason。自动重路由只升级，不静默降级，不重复等价的 done 节点。
 15. 子代理用于隔离高噪声探索；只有低耦合且可独立验证的任务才并行。
-16. 完成声明必须附实际验证、规格与状态文件结果、Review 结果、未验证项和剩余风险。必须先 validate/review 通过，再将状态设为 completed，最后 archive。
-17. `/new-task` 授权本地 OpenSpec archive，但不授权 Git 提交、推送、部署或破坏性清理。
+16. 验证命令来自项目画像，按 targeted/affected/full 范围执行，不采用固定语言命令或全局覆盖率阈值。失败时进入对应恢复方法并重新运行原验证节点。
+17. Standard/Governed 必须先 validate/review，再执行 `openspec archive <change-id> --yes`；只有归档目录中的 runtime `archive-complete` 成功后才能设为 completed。纯重构/文档/工具链 change 按 OpenSpec 规则声明 `skip_specs: true`。
+18. 完成声明必须附 route/workflow hash、节点证据、实际工具调用、验证、评审、归档、未验证项和剩余风险。
+19. `/new-task` 授权本地 OpenSpec archive 和项目 Hook 幂等安装，但不授权 Git 提交、推送、部署或破坏性清理。
 
 ## Source of Truth
 
 - 项目事实与验证命令：`.claude/project-profile.yaml`
-- 路由、组合规则和状态合同：`.claude/skills/workflow-router/`
+- 路由与状态转换：`.claude/scripts/workflow-runtime.mjs` 和 `.claude/workflow-state.schema.json`
+- 方法、模式和工具交接说明：`.claude/skills/workflow-router/`
 - Standard/Governed 的需求、设计、任务和状态：当前 OpenSpec change
 - 人工评审决定：Plannotator 会话
 - 实现事实：代码、测试结果和最终 diff
 
 ## Completion Report
 
-- intent、task type、initial/final mode、specialized gates 与证据
+- intent、task type、initial/final mode、execution policy、specialized gates 与证据
+- route fingerprint 与 workflow hash
 - 实际组合出的 ordered workflow
 - 节点状态：`done | N/A + evidence | blocked`
 - Superpowers、OpenSpec、Plannotator 的实际调用

@@ -1,5 +1,7 @@
 # Composable Routing Policy
 
+最终路由必须由 `.claude/scripts/workflow-runtime.mjs route` 根据结构化 `route_facts` 计算。AI 负责从需求与代码库提取事实，不得自行覆盖脚本结果；同一 facts、profile 状态和工作流版本必须得到相同 `route_fingerprint`。
+
 路由顺序固定为：
 
 ```text
@@ -58,6 +60,11 @@ change 请求选择一个主类型；混合任务选择最能决定核心方法�
 - 变更易回滚，失败影响有限
 - 存在一个直接、可信且成本较低的验证方式
 
+此外必须同时满足：
+
+- `.claude/project-profile.yaml` 的 `profile_status` 为 `ready`
+- Task Type 不是 `feature`；Superpowers brainstorming 所需设计批准由 Standard 的 Spec Diff Review 承载
+
 ### Standard: the default
 
 不满足 Fast 且未触发 Governed 的修改进入 Standard。它是普通功能、复杂 Bug、模块重构、兼容升级和有限业务规则变更的默认安全网。
@@ -81,3 +88,15 @@ Gate 由实际影响触发；目录位置和关键词只帮助定位证据。
 - 用户要求更低模式不能绕过 Governed 触发器；必须说明保障损失并取得明确决定。
 - 关键信息未知时先以 Standard 做定向探索；高影响区域的未知可直接触发 Governed。
 - 非 change 意图不因“看起来高风险”而自动获得修改授权。
+
+## Derived execution policy
+
+Risk Mode 决定保障下限后，Router 同时生成以下执行属性，不增加第四种模式：
+
+| Mode | planning_depth | validation_scope | isolation | review_policy | execution_strategy |
+|---|---|---|---|---|---|
+| Fast | concise | targeted | current-worktree | none | sequential |
+| Standard | normal | affected | isolate-if-dirty | spec-diff | sequential |
+| Governed | extensive | full | mandatory-worktree | spec-and-code-diff | dependency-parallel；迁移任务为 staged |
+
+属性是执行合同，不是新的人工选择项。Refactor 可将 Standard 的 planning_depth 自动提高为 extensive，但风险模式不因此改变。

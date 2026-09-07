@@ -225,5 +225,42 @@
     "expected_task_type": "migration-infrastructure",
     "expected_mode": null,
     "expected_gates": ["data", "release"]
+  },
+  {
+    "id": "apparently-small-feature-still-needs-design-approval",
+    "summary": "新增局部用户功能，即使满足低风险条件也必须完成 Superpowers 设计批准",
+    "facts": {
+      "requested_change": true,
+      "feature_or_behavior": true,
+      "clear_acceptance": true,
+      "localized_change": true,
+      "consumers_known": true,
+      "no_boundary_change": true,
+      "easy_rollback": true,
+      "direct_validation": true,
+      "no_design_tradeoff": true
+    },
+    "expected_intent": "change",
+    "expected_task_type": "feature",
+    "expected_mode": "standard"
+  },
+  {
+    "id": "unconfigured-profile-disables-fast",
+    "summary": "业务项目画像未完成时，即使表面满足低风险条件也不进入 Fast",
+    "profile_ready": false,
+    "facts": {
+      "requested_change": true,
+      "maintenance_only": true,
+      "clear_acceptance": true,
+      "localized_change": true,
+      "consumers_known": true,
+      "no_boundary_change": true,
+      "easy_rollback": true,
+      "direct_validation": true,
+      "no_design_tradeoff": true
+    },
+    "expected_intent": "change",
+    "expected_task_type": "maintenance",
+    "expected_mode": "standard"
   }
 ]

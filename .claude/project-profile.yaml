@@ -1,4 +1,6 @@
-version: 3.2.2
+version: 3.3.0
+
+profile_status: "unconfigured"
 
 project:
   name: "replace-me"
@@ -11,6 +13,7 @@ validation:
   integration_test: ""
   contract_test: ""
   static_analysis: ""
+  security_scan: ""
 
 risk:
   critical_domains:
@@ -33,11 +36,39 @@ workflow:
   openspec_from: "standard"
   plannotator_spec_diff_review_from: "standard"
   plannotator_code_diff_review_from: "governed"
+  feature_min_mode: "standard"
+
+execution_policy:
+  fast:
+    planning_depth: "concise"
+    validation_scope: "targeted"
+    isolation: "current-worktree"
+    review_policy: "none"
+    execution_strategy: "sequential"
+  standard:
+    planning_depth: "normal"
+    validation_scope: "affected"
+    isolation: "isolate-if-dirty"
+    review_policy: "spec-diff"
+    execution_strategy: "sequential"
+  governed:
+    planning_depth: "extensive"
+    validation_scope: "full"
+    isolation: "mandatory-worktree"
+    review_policy: "spec-and-code-diff"
+    execution_strategy: "dependency-parallel"
 
 state:
-  persist_from: "standard"
-  file_name: "workflow-state.yaml"
+  persist_from: "fast"
+  file_name: "workflow-state.json"
+  schema: ".claude/workflow-state.schema.json"
+  fast_directory: ".claude/workflow-runs"
   resume_incomplete: true
+
+runtime:
+  command: "node .claude/scripts/workflow-runtime.mjs"
+  hooks: ".claude/hooks/workflow-hooks.json"
+  hooks_installed: false
 
 autonomy:
   route_requires_confirmation: false
@@ -48,4 +79,6 @@ autonomy:
 
 notes:
   - "首次接入时，用真实命令、关键目录和交付能力替换空值或 unknown。"
+  - "profile_status 不是 ready 时禁止 Fast；先完成项目画像，再运行新任务。"
+  - "将 workflow-hooks.json 合并到项目 .claude/settings.json 后，生命周期约束才会生效。"
   - "profile 只存项目事实和授权边界，不复制路由、组合规则或节点状态。"

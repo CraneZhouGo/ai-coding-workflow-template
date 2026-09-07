@@ -1,112 +1,86 @@
 #!/usr/bin/env python3
-"""运行 V3.2.2 可组合路由器的维护校准案例。"""
+"""通过 V3.3 Node 运行时执行路由校准，避免维护第二套路由规则。"""
 
 from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GOVERNED_FACTS = {
-    "critical_semantics_changed",
-    "incompatible_public_contract",
-    "coordinated_release",
-    "schema_migration",
-    "data_backfill",
-    "global_security_or_infrastructure",
-    "no_credible_rollback",
-    "cross_repo_release_ordering",
-    "unbounded_impact",
-    "critical_validation_unavailable",
-}
-FAST_FACTS = {
-    "clear_acceptance",
-    "localized_change",
-    "consumers_known",
-    "no_boundary_change",
-    "easy_rollback",
-    "direct_validation",
-    "no_design_tradeoff",
-}
-GATE_FACTS = {
-    "data": "data_gate",
-    "security": "security_gate",
-    "contract": "contract_gate",
-    "infrastructure": "infrastructure_gate",
-    "release": "release_gate",
-    "observability": "observability_gate",
-}
+RUNTIME = ROOT / ".claude/scripts/workflow-runtime.mjs"
+
+
+def route_decision(facts: dict[str, bool], *, profile_ready: bool = True) -> dict[str, Any]:
+    """调用发行包中的唯一确定性 Router，返回完整路由结果。"""
+    payload = json.dumps(
+        {"facts": facts, "profile_ready": profile_ready},
+        ensure_ascii=False,
+    )
+    result = subprocess.run(
+        ["node", str(RUNTIME), "route", "--json", payload],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return json.loads(result.stdout)
 
 
 def classify_intent(facts: dict[str, bool]) -> str:
-    """识别用户的授权意图；明确要求实施时，以修改意图为准。"""
-    if facts.get("requested_change", False):
-        return "change"
-    if facts.get("requested_plan", False):
-        return "plan-only"
-    if facts.get("requested_diagnosis", False):
-        return "diagnose-only"
-    if facts.get("requested_review", False):
-        return "review"
-    return "explain"
+    """返回用户授权意图。"""
+    return route_decision(facts)["route"]["intent"]
 
 
 def classify_task_type(facts: dict[str, bool]) -> str | None:
-    """独立于风险模式，选择任务的主要方法类型。"""
-    if facts.get("migration_or_infrastructure", False):
-        return "migration-infrastructure"
-    if facts.get("bug_or_failure", False):
-        return "bug"
-    if facts.get("refactor_only", False):
-        return "refactor"
-    if facts.get("upgrade_or_configuration", False):
-        return "upgrade-config"
-    if facts.get("maintenance_only", False):
-        return "maintenance"
-    if facts.get("feature_or_behavior", False) or facts.get("requested_change", False):
-        return "feature"
-    return None
+    """返回任务主方法类型。"""
+    return route_decision(facts)["route"]["task_type"]
 
 
 def route(facts: dict[str, bool]) -> str:
-    """为修改类任务选择风险模式；调用方必须先识别用户意图。"""
-    if any(facts.get(name, False) for name in GOVERNED_FACTS):
-        return "governed"
-    if all(facts.get(name, False) for name in FAST_FACTS):
-        return "fast"
-    return "standard"
+    """按修改意图计算风险模式，保留维护脚本原有调用接口。"""
+    change_facts = {**facts, "requested_change": True}
+    return route_decision(change_facts)["route"]["mode"]
 
 
 def route_mode(facts: dict[str, bool]) -> str | None:
-    if classify_intent(facts) != "change":
-        return None
-    return route(facts)
+    """仅 change 意图返回风险模式。"""
+    return route_decision(facts)["route"]["mode"]
 
 
 def classify_specialized_gates(facts: dict[str, bool]) -> list[str]:
-    """按照稳定的执行顺序返回需要启用的专项 Gate。"""
-    return [gate for gate, signal in GATE_FACTS.items() if facts.get(signal, False)]
+    """按照稳定顺序返回专项 Gate。"""
+    return route_decision(facts)["route"]["specialized_gates"]
 
 
 def evaluate(path: Path) -> list[str]:
+    """重放校准案例并检查同一输入的路由指纹稳定性。"""
     cases = json.loads(path.read_text(encoding="utf-8"))
     failures: list[str] = []
     for case in cases:
-        facts = case["facts"]
-        actual = {
-            "intent": classify_intent(facts),
-            "task_type": classify_task_type(facts),
-            "mode": route_mode(facts),
-            "gates": classify_specialized_gates(facts),
-        }
-        for field in ("intent", "task_type", "mode", "gates"):
-            expected = case.get(f"expected_{field}", [] if field == "gates" else None)
+        result = route_decision(
+            case["facts"],
+            profile_ready=case.get("profile_ready", True),
+        )
+        actual = result["route"]
+        for field in ("intent", "task_type", "mode", "specialized_gates"):
+            expected_key = "expected_gates" if field == "specialized_gates" else f"expected_{field}"
+            expected = case.get(expected_key, [] if field == "specialized_gates" else None)
             if actual[field] != expected:
                 failures.append(
                     f"{case['id']} {field}: expected {expected!r}, got {actual[field]!r}"
                 )
+
+        replay = route_decision(
+            case["facts"],
+            profile_ready=case.get("profile_ready", True),
+        )
+        if replay["route_fingerprint"] != result["route_fingerprint"]:
+            failures.append(f"{case['id']} route fingerprint is not deterministic")
     return failures
 
 
@@ -116,12 +90,12 @@ def main() -> int:
     args = parser.parse_args()
     failures = evaluate(args.cases)
     if failures:
-        print("composable routing evaluation failed:")
+        print("deterministic routing evaluation failed:")
         for failure in failures:
             print(f"- {failure}")
         return 1
     count = len(json.loads(args.cases.read_text(encoding="utf-8")))
-    print(f"composable routing evaluation passed: {count} cases")
+    print(f"deterministic routing evaluation passed: {count} cases")
     return 0
 
 
