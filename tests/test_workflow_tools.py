@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -314,6 +315,130 @@ class CodexAdapterTests(unittest.TestCase):
             self.assertEqual(
                 decision["hookSpecificOutput"]["permissionDecision"], "deny"
             )
+
+
+class SetupPluginDetectionTests(unittest.TestCase):
+    def check_plugin_state(
+        self, cli_result: dict, *, config: str = "", cached: bool = True,
+        desktop: bool = True, path_result: dict | None = None,
+    ) -> tuple[subprocess.CompletedProcess[str], dict]:
+        # Only the external CLI is replaced: filesystem detection, JSON parsing,
+        # readiness calculation and the real setup entry point all run normally.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            codex_home = root / "codex-home"
+            codex_home.mkdir()
+            (codex_home / "config.toml").write_text(config, encoding="utf-8")
+            if cached:
+                skill = codex_home / "plugins/cache/example/superpowers/1/skills/using-superpowers/SKILL.md"
+                skill.parent.mkdir(parents=True)
+                skill.write_text("cached skill", encoding="utf-8")
+            if desktop:
+                binary = codex_home / "plugins/.plugin-appserver" / (
+                    "codex.exe" if os.name == "nt" else "codex"
+                )
+                binary.parent.mkdir(parents=True)
+                binary.write_text("CLI fixture intercepted by preload", encoding="utf-8")
+            for name in ("openspec-propose", "openspec-apply-change"):
+                skill = root / ".agents/skills" / name / "SKILL.md"
+                skill.parent.mkdir(parents=True)
+                skill.write_text("available", encoding="utf-8")
+            preload = root / "cli-fixture.mjs"
+            preload.write_text(
+                'import childProcess from "node:child_process";\n'
+                'import { syncBuiltinESMExports } from "node:module";\n'
+                f'const desktopResult = {json.dumps(cli_result)};\n'
+                f'const pathResult = {json.dumps(path_result if path_result is not None else cli_result)};\n'
+                f'const expectedRoot = {json.dumps(str(root))};\n'
+                'childProcess.spawnSync = (command, args, options) => {\n'
+                '  if (JSON.stringify(args) !== JSON.stringify(["plugin", "list", "--json"])\n'
+                '      || options?.cwd !== expectedRoot || options?.shell) {\n'
+                '    throw new Error("unexpected CLI invocation");\n'
+                '  }\n'
+                '  return String(command).includes(".plugin-appserver") ? desktopResult : pathResult;\n'
+                '};\n'
+                'syncBuiltinESMExports();\n',
+                encoding="utf-8",
+            )
+            before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            result = subprocess.run(
+                ["node", "--import", preload.as_uri(), str(SETUP_CHECK),
+                 "--root", str(root), "--require-ready", "--probe-json", json.dumps({
+                     "node": True, "openspec_cli": True, "plannotator_cli": True,
+                 })],
+                cwd=ROOT, env={**os.environ, "CODEX_HOME": str(codex_home)},
+                capture_output=True, text=True, encoding="utf-8",
+            )
+            self.assertTrue(result.stdout, result.stderr)
+            after = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            self.assertEqual(after, before, "read-only preflight must not modify files")
+            return result, json.loads(result.stdout)
+
+    def plugin_list(self, enabled: bool) -> dict:
+        return {"status": 0, "stdout": json.dumps({"installed": [{
+            "pluginId": "superpowers@openai-curated-remote", "name": "superpowers",
+            "installed": True, "enabled": enabled,
+        }], "available": []})}
+
+    def test_remote_enabled_without_local_config_is_ready(self) -> None:
+        result, status = self.check_plugin_state(
+            self.plugin_list(True), path_result={"status": 1, "stdout": ""},
+        )
+        self.assertEqual(result.returncode, 0, status)
+        self.assertTrue(status["superpowers"]["enabled"])
+        self.assertEqual(status["missing"], [])
+
+    def test_authoritative_disabled_overrides_stale_local_enabled(self) -> None:
+        result, status = self.check_plugin_state(
+            self.plugin_list(False), config='[plugins."superpowers@old"]\nenabled = true\n',
+            path_result=self.plugin_list(True),
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertTrue(status["superpowers"]["installed"])
+        self.assertFalse(status["superpowers"]["enabled"])
+        self.assertEqual(status["missing"], ["superpowers-enable"])
+
+    def test_authoritative_list_does_not_treat_stale_cache_as_installed(self) -> None:
+        for records in ([], [{"name": "superpowers-extra", "installed": True, "enabled": True}],
+                        [{"name": "superpowers", "installed": False, "enabled": True}]):
+            with self.subTest(records=records):
+                result, status = self.check_plugin_state({"status": 0, "stdout": json.dumps({
+                    "installed": records, "available": [{"name": "superpowers", "enabled": True}],
+                })}, config='[plugins."superpowers@old"]\nenabled = true\n')
+                self.assertEqual(result.returncode, 1)
+                self.assertFalse(status["superpowers"]["installed"])
+                self.assertEqual(status["missing"], ["superpowers-plugin"])
+
+    def test_official_state_works_without_cache_and_with_path_cli(self) -> None:
+        result, status = self.check_plugin_state(self.plugin_list(True), cached=False, desktop=False)
+        self.assertEqual(result.returncode, 0, status)
+        self.assertTrue(status["superpowers"]["ready"])
+
+    def test_unavailable_desktop_cli_tries_path_cli(self) -> None:
+        result, status = self.check_plugin_state(
+            {"status": 1, "stdout": ""}, path_result=self.plugin_list(True),
+        )
+        self.assertEqual(result.returncode, 0, status)
+
+    def test_legacy_fallback_requires_explicit_enable_and_installed_skill(self) -> None:
+        for cli_result in ({"status": 1, "stdout": ""}, {"status": None, "stdout": ""},
+                           {"status": 0, "stdout": "not json"},
+                           {"status": 0, "stdout": '{"unexpected": []}'}):
+            for config, expected_missing in (
+                ('[plugins."superpowers@old"]\nenabled = true\n', []),
+                ('[plugins."superpowers@old"]\nenabled = false\n', ["superpowers-enable"]),
+                ("", ["superpowers-enable"]),
+            ):
+                with self.subTest(cli_result=cli_result, config=config):
+                    result, status = self.check_plugin_state(cli_result, config=config)
+                    self.assertEqual(status["missing"], expected_missing)
+                    self.assertEqual(result.returncode, 1 if expected_missing else 0)
+        result, status = self.check_plugin_state(
+            {"status": 1, "stdout": ""}, cached=False,
+            config='[plugins."superpowers@old"]\nenabled = true\n',
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(status["missing"], ["superpowers-plugin"])
 
 
 class RoutingPolicyTests(unittest.TestCase):

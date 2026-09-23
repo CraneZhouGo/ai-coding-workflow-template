@@ -89,6 +89,42 @@ function pluginEnabled(configPath, pluginName) {
   return /^\s*enabled\s*=\s*true\s*$/m.test(section);
 }
 
+function installedPluginState(codexHome, root, pluginName) {
+  // Remote plugins need not have a local config.toml entry. Ask the host for
+  // effective state, preferring Desktop's CLI over a potentially older PATH CLI.
+  const desktopCli = join(codexHome, "plugins", ".plugin-appserver",
+    process.platform === "win32" ? "codex.exe" : "codex");
+  const commands = existsSync(desktopCli) ? [desktopCli, "codex"] : ["codex"];
+  for (const command of commands) {
+    const result = spawnSync(command, ["plugin", "list", "--json"], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 10000,
+      windowsHide: true,
+    });
+    if (result.error || result.status !== 0) continue;
+    let listing;
+    try {
+      listing = JSON.parse(result.stdout);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(listing?.installed)) continue;
+    const matches = listing.installed.filter((plugin) => plugin?.name === pluginName);
+    if (matches.some((plugin) => typeof plugin.installed !== "boolean"
+      || typeof plugin.enabled !== "boolean")) continue;
+    const installed = matches.filter((plugin) => plugin.installed);
+    // A valid empty/disabled result is authoritative; stale caches or local
+    // config entries must not turn an uninstalled/disabled plugin back on.
+    return {
+      installed: installed.length > 0,
+      enabled: installed.some((plugin) => plugin.enabled),
+    };
+  }
+  return null;
+}
+
 function setProfileSetup(profilePath, status) {
   if (!existsSync(profilePath)) throw new Error(`项目画像不存在: ${profilePath}`);
   const start = "# ai-coding-workflow-setup:start";
@@ -128,13 +164,16 @@ function main() {
   const probe = options.probe_json ? JSON.parse(String(options.probe_json)) : {};
   const configPath = join(codexHome, "config.toml");
   const pluginCache = join(codexHome, "plugins", "cache");
-  const superpowersInstalled = probe.superpowers_installed ?? walk(
+  const pluginState = probe.superpowers_installed != null && probe.superpowers_enabled != null
+    ? null : installedPluginState(codexHome, root, "superpowers");
+  const superpowersInstalled = probe.superpowers_installed ?? pluginState?.installed ?? walk(
     pluginCache,
     (path, entry) => entry.isFile() && entry.name === "SKILL.md"
       && path.replaceAll("\\", "/").includes("/superpowers/")
       && path.replaceAll("\\", "/").includes("/using-superpowers/"),
   );
-  const superpowersEnabled = probe.superpowers_enabled ?? pluginEnabled(configPath, "superpowers");
+  const superpowersEnabled = probe.superpowers_enabled ?? pluginState?.enabled
+    ?? pluginEnabled(configPath, "superpowers");
   const openspecSkills = ["openspec-propose", "openspec-apply-change"].every((name) =>
     existsSync(join(root, ".agents", "skills", name, "SKILL.md"))
   );

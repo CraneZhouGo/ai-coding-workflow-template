@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "ai-coding-workflow",
-  "version": "3.3.0+codex.20260923120310",
+  "version": "3.3.0+codex.20260923140426",
   "description": "根据任务类型与风险自动组合 Superpowers、OpenSpec 和 Plannotator，并持续执行到完成。",
   "author": {
     "name": "CraneZhouGo",
