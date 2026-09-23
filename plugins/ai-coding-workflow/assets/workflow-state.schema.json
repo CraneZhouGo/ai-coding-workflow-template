@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai-coding-workflow:state:3.3",
+  "title": "AI Coding Workflow V3.3 State",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "workflow_version",
+    "change_id",
+    "profile_ready",
+    "requirement_fingerprint",
+    "route_fingerprint",
+    "workflow_hash",
+    "route_facts",
+    "route",
+    "current_node",
+    "status",
+    "spec_review",
+    "code_review",
+    "archive_status",
+    "nodes",
+    "reroutes",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "workflow_version": { "const": "3.3.0" },
+    "change_id": { "type": "string", "minLength": 1 },
+    "profile_ready": { "type": "boolean" },
+    "requirement": { "type": "string" },
+    "requirement_fingerprint": { "$ref": "#/$defs/hash" },
+    "route_fingerprint": { "$ref": "#/$defs/hash" },
+    "workflow_hash": { "$ref": "#/$defs/hash" },
+    "route_facts": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "route": {
+      "type": "object",
+      "required": ["intent", "task_type", "initial_mode", "current_mode", "specialized_gates", "execution_policy"],
+      "properties": {
+        "intent": { "const": "change" },
+        "task_type": { "enum": ["feature", "bug", "refactor", "upgrade-config", "migration-infrastructure", "maintenance"] },
+        "initial_mode": { "enum": ["fast", "standard", "governed"] },
+        "current_mode": { "enum": ["fast", "standard", "governed"] },
+        "specialized_gates": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["data", "security", "contract", "infrastructure", "release", "observability"] }
+        },
+        "execution_policy": {
+          "type": "object",
+          "required": ["planning_depth", "validation_scope", "isolation", "review_policy", "execution_strategy"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "current_node": { "type": ["string", "null"] },
+    "status": { "enum": ["active", "blocked", "completed"] },
+    "review_base": { "type": ["object", "null"] },
+    "spec_review": { "$ref": "#/$defs/review" },
+    "code_review": { "$ref": "#/$defs/review" },
+    "archive_status": { "enum": ["N/A", "pending", "ready", "completed"] },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "reroutes": { "type": "array", "items": { "type": "object" } },
+    "blocked_reason": { "type": ["string", "null"] },
+    "compaction_count": { "type": "integer", "minimum": 0 },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "review": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["N/A", "pending", "approved", "rejected", "stale"] },
+        "diff_type": { "enum": ["uncommitted", "since-base"] },
+        "expected_paths": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "displayed_paths": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "artifact_hashes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": { "type": "string" },
+              "sha256": { "$ref": "#/$defs/hash" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "reviewed_at": { "type": "string" },
+        "evidence": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "phase", "source", "required", "human_gate", "prerequisites", "status", "evidence"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "phase": { "enum": ["planning", "implementation", "verification", "human_gate", "completion"] },
+        "source": { "enum": ["core", "method", "mode", "gate"] },
+        "required": { "const": true },
+        "human_gate": { "type": "boolean" },
+        "prerequisites": { "type": "array", "items": { "type": "string" } },
+        "status": { "enum": ["pending", "in_progress", "done", "N/A", "blocked"] },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

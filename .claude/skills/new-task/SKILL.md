@@ -12,7 +12,7 @@ disable-model-invocation: true
 调用本 skill 即授权当前项目内的读取、修改、非破坏性命令、构建、测试和当前 OpenSpec change 的本地生命周期。它不授权提交、推送、部署、秘密访问或破坏性动作。
 
 1. 读取 `CLAUDE.md` 和 `.claude/project-profile.yaml`。
-2. 显式加载 `workflow-router` skill；确认项目画像 ready、Hook 已幂等安装，并先查找可恢复的 `workflow-state.json`。
+2. 显式加载 `workflow-router` skill；确认项目画像 ready、默认 Hook 已幂等安装，并先查找可恢复的 `workflow-state.json`。只有项目明确选择 strict Hook profile 时才启用规划期写入拦截。
 3. 对新请求提取结构化 route facts，必须调用 `.claude/scripts/workflow-runtime.mjs route`；不得手工决定模式或节点。输出 Route Card，它是状态通知，不是审批请求：
 
 ```text
@@ -33,5 +33,5 @@ human_gates: none | spec-diff-review | spec-diff-review+code-diff-review
 6. 使用 runtime `compose/init-state/next/transition` 冻结并推进有序工作流；每个节点必须有证据，只有 `CLAUDE.md` Autonomy Contract 列出的情况可以暂停。
 7. Standard/Governed 的 S-DF1 调用 runtime `capture-spec-diff`；S-HG1 显式调用 `/plannotator-review` 的 `uncommitted` 视图，并用 runtime `review --type spec` 校验实际展示文件。不得手动拼接文档正文；存在用户原有修改时必须先进入隔离 worktree。
 8. 实施阶段调用 `/opsx:apply <change-id>` 或 `openspec-apply-change` skill；不得尝试不存在的终端命令 `openspec apply`。原生入口不可用时，使用 `openspec instructions apply --change <change-id> --json` 获取官方指令。
-9. 每完成节点、进入或退出人工 Gate、重路由和上下文压缩时更新 `workflow-state.json`；Hook 阻止规划阶段越界编辑和未完成时提前停止。
+9. 每完成节点、进入或退出人工 Gate及重路由时更新 `workflow-state.json`；默认 Stop Hook 阻止未完成时提前停止，strict profile 额外阻止规划阶段越界编辑。
 10. Standard/Governed 最终运行参数化验证、Review、`openspec validate <change-id> --strict --no-interactive` 和 `openspec archive <change-id> --yes`；只有 runtime `archive-complete` 成功后才能报告 completed。

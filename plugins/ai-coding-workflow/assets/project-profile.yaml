@@ -61,15 +61,29 @@ execution_policy:
 state:
   persist_from: "fast"
   file_name: "workflow-state.json"
-  schema: ".claude/workflow-state.schema.json"
-  fast_directory: ".claude/workflow-runs"
+  schema: ".codex/ai-coding-workflow/workflow-state.schema.json"
+  fast_directory: ".codex/ai-coding-workflow/workflow-runs"
   resume_incomplete: true
 
 runtime:
-  command: "node .claude/scripts/workflow-runtime.mjs"
-  hooks: ".claude/hooks/workflow-hooks.json"
-  hooks_installed: false
+  command: "node <plugin-root>/scripts/workflow-runtime.mjs --host codex"
+  hooks: "由 Codex 插件提供：hooks/hooks.json"
+  hooks_installed: true
   hook_profile: "default"
+
+# ai-coding-workflow-setup:start
+setup:
+  status: "unchecked"
+  checked_at: ""
+  node: false
+  node_version: ""
+  node_supported: false
+  superpowers_plugin: false
+  openspec_cli: false
+  openspec_skills: false
+  plannotator_cli: false
+  hooks_trust: "manual"
+# ai-coding-workflow-setup:end
 
 autonomy:
   route_requires_confirmation: false
@@ -81,5 +95,7 @@ autonomy:
 notes:
   - "首次接入时，用真实命令、关键目录和交付能力替换空值或 unknown。"
   - "profile_status 不是 ready 时禁止 Fast；先完成项目画像，再运行新任务。"
-  - "默认 Hook 只安装 SessionStart + Stop；需要规划期写入拦截时使用 strict 配置。"
+  - "Codex 插件内置 SessionStart、Stop 和 PreToolUse；PreToolUse 仅在 hook_profile 为 strict 时执行拦截。"
+  - "安装插件后需在 Codex 中审查并信任 Hook；切换 default/strict 只修改 hook_profile，无需重装。"
+  - "setup 状态由 scripts/setup-check.mjs 维护；缺失依赖时使用 $ai-coding-workflow-setup 集中修复。"
   - "profile 只存项目事实和授权边界，不复制路由、组合规则或节点状态。"

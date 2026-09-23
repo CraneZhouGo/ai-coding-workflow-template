@@ -12,6 +12,18 @@
 
 ## 2. 首次接入
 
+### Codex Desktop / CLI
+
+1. 克隆仓库后在根目录执行 `codex plugin marketplace add .`；远程版本发布后也可以执行 `codex plugin marketplace add CraneZhouGo/ai-coding-workflow-template`。重启 Codex Desktop，然后从 `AI Coding Workflow` Marketplace 安装插件。
+2. 在业务项目的新任务中调用 `$ai-coding-workflow-setup`。它集中检查 Node.js 20.19.0+、Superpowers、OpenSpec、Plannotator 和项目 Skills；显式 setup 请求授权标准安装，普通任务触发时只集中确认一次。Superpowers 仍通过官方插件页或 `/plugins` 交互入口安装，因为 Codex 插件清单不能声明插件依赖。
+3. 信任业务项目并审查、信任插件 Hook。第三方插件安装或新 Skill 生效后开启新任务，再直接描述需求或调用 `$ai-coding-workflow`。
+4. Setup 创建 `.codex/ai-coding-workflow/project-profile.yaml` 并记录检查状态。补齐真实 build/test/static/security 命令和风险位置后，将 `profile_status` 改为 `ready`。
+5. `hook_profile: "default"` 只恢复和续跑；改为 `strict` 后额外阻止 Spec Review 前越界编辑。两者直接修改画像即可切换，不需要重新安装 Hook。
+
+Codex 版使用 `$openspec-propose`、`$openspec-apply-change`、可选的 `$openspec-verify-change` 和 `$plannotator-review`；不会调用 Claude Code 的 `/opsx:*` 或 `/plannotator-review`。
+
+### Claude Code
+
 1. 解压 `ai-coding-workflow-template.zip` 到业务项目根目录。已有 `CLAUDE.md` 和 `.claude/settings.json` 时应合并规则，不直接覆盖。
 2. 安装 Superpowers、OpenSpec 和 Plannotator，并执行 `openspec init` 选择 Claude Code。
 3. 编辑 `.claude/project-profile.yaml`：填写真实 build/test/static/security 命令、公共契约和迁移目录、回滚、观测及部署能力。确认完成后设置：
@@ -20,11 +32,19 @@
 profile_status: "ready"
 ```
 
-4. 运行一次 Hook 安装命令；它会保留现有 settings 并幂等追加四个 Hook：
+4. 运行一次 Hook 安装命令；它会保留现有 settings，并默认幂等安装 SessionStart + Stop：
 
 ```text
 node .claude/scripts/workflow-runtime.mjs install-hooks
 ```
+
+只有明确需要规划期写入强制拦截的项目才安装 strict profile：
+
+```text
+node .claude/scripts/workflow-runtime.mjs install-hooks --profile strict
+```
+
+再次执行默认命令可以从 strict 切回默认配置；安装器不会删除项目自有 Hook。
 
 5. 重启 Claude Code。以后只需描述需求或执行 `/new-task <需求>`。
 
@@ -91,12 +111,13 @@ Standard/Governed:  openspec/changes/<change-id>/workflow-state.json
 
 其中记录 route facts、route/workflow hash、current node、节点证据、Review 文件与 SHA-256、重路由历史和归档状态。状态只允许 `pending → in_progress → done/blocked/N/A` 等法定转换，完成和跳过都必须有证据。
 
-四个 Hook 的作用：
+Hook 的作用：
 
-- SessionStart：恢复唯一活动任务和当前节点。
-- PreToolUse：Spec Diff Review 前不允许改业务代码；Fast 的 planning 完成前也不允许编辑。
-- PreCompact：上下文压缩前原子保存状态。
-- Stop：还有可执行 REQUIRED 节点时阻止 Agent 提前结束；人工 Gate 或真实 blocked 时允许停下。
+- SessionStart（默认）：恢复唯一活动任务和当前节点。
+- Stop（默认）：还有可执行 REQUIRED 节点时阻止 Agent 提前结束；人工 Gate 或真实 blocked 时允许停下。
+- PreToolUse（strict 可选）：Spec Diff Review 前不允许改业务代码；Fast 的 planning 完成前也不允许编辑。
+
+不再安装 PreCompact。每次节点转换、Review、重路由和归档都会原子保存状态，上下文压缩 Hook 不会增加实际可靠性。
 
 你不需要手动运行状态命令。正常情况下 Router 会自动调用 route、compose、init-state、next、transition、capture-spec-diff、review、reroute 和 archive-complete。只有首次安装 Hook 需要手动执行一次安装命令。
 
@@ -113,6 +134,23 @@ Standard/Governed:  openspec/changes/<change-id>/workflow-state.json
 OpenSpec 子命令显示 stop 或 ready 只表示返回父 Router，不表示整项任务完成，也不需要用户手动触发下一步。
 
 ## 8. 每个发行文件的用途
+
+Codex 插件位于 `plugins/ai-coding-workflow/`：
+
+| 文件 | 用途 | 触发时机 |
+|---|---|---|
+| `plugin.json` | 通用插件身份 | 安装、发布和新格式宿主发现 |
+| `.codex-plugin/plugin.json` | Codex 兼容清单 | Codex Desktop/CLI 安装和展示 |
+| `skills/ai-coding-workflow/SKILL.md` | 单一自动路由入口 | 软件项目请求匹配或显式 `$ai-coding-workflow` |
+| `skills/ai-coding-workflow-setup/SKILL.md` | 依赖检测与一次性初始化 | 安装、配置、修复或缺失依赖时 |
+| `skills/ai-coding-workflow/references/` | Codex 路由与节点合同 | Skill 按本次任务选择性读取 |
+| `scripts/workflow-runtime.mjs` | 确定性路由和状态机 | Skill 与 Hook 自动调用 |
+| `scripts/setup-check.mjs` | 只读依赖检测并更新画像 setup 状态 | Setup 和首次开发请求 |
+| `hooks/hooks.json` | 恢复、续跑与可选严格写入保护 | 安装后经用户信任生效 |
+| `assets/project-profile.yaml` | Codex 项目画像模板 | 首次运行复制到业务项目 |
+| `assets/workflow-state.schema.json` | 状态结构合同 | 首次运行同步到业务项目 |
+
+Claude Code 发行文件如下：
 
 | 文件 | 用途 | 触发时机 |
 |---|---|---|

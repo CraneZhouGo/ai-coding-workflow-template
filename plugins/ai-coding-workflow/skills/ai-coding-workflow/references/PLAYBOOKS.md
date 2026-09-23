@@ -1,6 +1,6 @@
 # Deterministic Composable Execution Playbooks — V3.3
 
-本文件定义节点语义；`.claude/scripts/workflow-runtime.mjs` 负责选择、排序、冻结和推进节点。`REQUIRED` 不可静默跳过；原生能力必须实际调用，不能用文字声称替代。
+本文件定义节点语义；插件 `scripts/workflow-runtime.mjs --host codex` 负责选择、排序、冻结和推进节点。`REQUIRED` 不可静默跳过；原生能力必须实际调用，不能用文字声称替代。
 
 ```text
 Core Spine + Task Method + Risk Safeguards + Specialized Gates
@@ -36,25 +36,25 @@ Core Spine + Task Method + Risk Safeguards + Specialized Gates
 
 | 能力 | 正确入口 | 用途 |
 |---|---|---|
-| Propose | `/opsx:propose` 或宿主生成的 propose skill | 创建 change 与规划工件 |
-| Apply | `/opsx:apply <change-id>` 或 `openspec-apply-change` skill | 进入实施阶段、读取 tasks、更新任务状态 |
+| Propose | `$openspec-propose` | 创建 change 与规划工件 |
+| Apply | `$openspec-apply-change <change-id>` | 进入实施阶段、读取 tasks、更新任务状态 |
 | Apply instructions fallback | `openspec instructions apply --change <change-id> --json` | 原生 Agent 入口不可用时获取官方实施指令 |
 | Status/Validate/Archive | `openspec status`、`openspec validate --strict --no-interactive`、`openspec archive --yes` | CLI 状态、严格校验和无人值守归档 |
 
 - 终端命令 `openspec apply` 不存在，禁止尝试或把“Router 开始改代码”记作 apply 已完成。
-- 能力探测顺序固定为 `/opsx:apply` → `openspec-apply-change` → `openspec instructions apply`。前两项名称可随宿主适配器变化，但必须来自 `openspec init/update` 生成的当前能力。
+- 能力探测顺序固定为 `$openspec-apply-change` → `openspec instructions apply`。Skill 必须来自 `openspec init --tools codex` 或后续 `openspec update` 生成的当前能力。
 - apply-change 负责加载 change、确认工件就绪、选择未完成 tasks、调用对应 Superpowers 实施方法并更新 tasks；返回 Router 后再执行统一验证和 Review。
-- `/opsx:verify` 仅在当前 OpenSpec profile 已生成该能力时追加；否则使用项目验证和 CLI strict validate，不伪造调用。
+- `$openspec-verify-change` 仅在当前 OpenSpec profile 已生成该能力时追加；否则使用项目验证和 CLI strict validate，不伪造调用。
 - 纯重构、文档、测试或工具链 change 没有 spec delta 时，在 `.openspec.yaml` 声明 `skip_specs: true`，不依赖临时 archive 参数掩盖模型错误。
-- `propose`、apply-change、archive 子工作流的 `stop` 或 `ready for next command` 只表示返回父 Router，不结束 `/new-task`。
+- `propose`、apply-change、archive 子工作流的 `stop` 或 `ready for next command` 只表示返回父 Router，不结束 `$ai-coding-workflow`。
 - `workflow-state.json` 是编排器 sidecar，不复制 proposal/spec/design/tasks。
 
 ### Plannotator adapter
 
 - Standard/Governed 的规划 Gate 不使用 ExitPlanMode Plan Review，也不拼接 `tool_input.plan`。
-- 规划完成后显式调用 `/plannotator-review`，明确选择 `uncommitted` 视图，让界面直接显示 OpenSpec 文件树和逐行 diff。
+- 规划完成后优先调用 `$plannotator-review`；该 Skill 不可用但 CLI 可用时调用 `plannotator review --git`。使用 `uncommitted` 视图，让界面直接显示 OpenSpec 文件树和逐行 diff。
 - Standard 的 Spec Diff Review 批准当前 change 的 proposal/specs/design/tasks、测试与专项 Gate；Governed 还覆盖迁移、回滚、发布和停止条件。
-- Governed 的 Code Diff Review 在实施验证完成后再次调用 `/plannotator-review`，使用 `since-base` 视图评审完整 PR 形态 diff 和交付风险。
+- Governed 的 Code Diff Review 在实施验证完成后再次调用 `$plannotator-review` 或同等 CLI fallback，使用 `since-base` 视图评审完整 PR 形态 diff 和交付风险。
 
 ## OpenSpec Spec Diff Review contract
 
@@ -64,9 +64,9 @@ Core Spine + Task Method + Risk Safeguards + Specialized Gates
 2. **P-SD2 REQUIRED — discover-artifacts**：运行 `openspec status --change <change-id> --json`，确认 schema 要求的 proposal/specs/design/tasks 等工件 ready。
 3. **P-SD3 REQUIRED — enforce-diff-scope**：调用 runtime `capture-spec-diff` 获取 tracked/untracked 文件；所有路径必须位于 `openspec/changes/<change-id>/**`。出现业务代码、其他 change 或无关文件时拒绝进入 Gate。
 4. **P-SD4 REQUIRED — hash-planning-artifacts**：runtime 对稳定规划工件按原始字节计算 SHA-256 并写入 workflow-state；workflow-state 自身不参与失效哈希。
-5. **P-SD5 HUMAN GATE — plannotator-spec-diff-review**：调用 `/plannotator-review` 并选择 `uncommitted` 视图；批准前将界面 displayed paths 传给 runtime `review --type spec`，必须与 expected paths 完全一致。
+5. **P-SD5 HUMAN GATE — plannotator-spec-diff-review**：调用 `$plannotator-review`，不可用时调用 `plannotator review --git`，并选择 `uncommitted` 视图；批准前将界面 displayed paths 传给 runtime `review --type spec`，必须与 expected paths 完全一致。
 
-禁止创建额外 Review Packet，禁止把 OpenSpec 文档全文手动拼入 Plan Review。若 `/plannotator-review` 无法展示 untracked change 文件或 diff 中无法排除无关修改，属于能力降级，必须先修复隔离环境或暂停说明。
+禁止创建额外 Review Packet，禁止把 OpenSpec 文档全文手动拼入 Plan Review。若 `$plannotator-review` 无法展示 untracked change 文件或 diff 中无法排除无关修改，属于能力降级，必须先修复隔离环境或暂停说明。
 
 Gate 后任何已评审稳定规划工件的哈希变化都会使 `spec_review.status` 变为 stale；runtime 会阻止 C5 开始并自动退回 S-DF1。
 
@@ -139,9 +139,9 @@ brainstorming 只在根因明确后出现真实产品/架构取舍时追加。
 3. **S-PL1 REQUIRED — plan-readiness-check [planning]**：检查 AC、任务顺序、方法节点、测试、回滚和 Gate 覆盖。
 4. **S-DF1 REQUIRED — openspec-diff-scope-check [planning]**：执行 P-SD2 至 P-SD4；必须由 runtime 保存 expected paths 和 artifact hashes。
 5. **S-HG1 HUMAN GATE — plannotator-spec-diff-review**：执行 P-SD5；runtime 校验 `uncommitted` displayed paths 后才能批准，拒绝则修订并重新打开 diff。
-6. **S-IM1 REQUIRED — openspec-implementation-entry [implementation]**：按能力探测顺序调用 `/opsx:apply`、`openspec-apply-change` 或官方 instructions fallback；在该入口内执行 Task Method 的 implementation 节点和 Superpowers 方法。
+6. **S-IM1 REQUIRED — openspec-implementation-entry [implementation]**：按能力探测顺序调用 `$openspec-apply-change` 或官方 instructions fallback；在该入口内执行 Task Method 的 implementation 节点和 Superpowers 方法。
 7. **S-RV1 REQUIRED — verification-and-ai-code-review**：按 profile 的 affected 范围执行验证、`verification-before-completion`、spec-compliance 和独立 AI review；Standard 默认不打开第二个人工 Gate。
-8. **S-FI1 REQUIRED — validate-and-ready-to-archive**：运行可用的 `/opsx:verify`、项目验证和 `openspec validate <change-id> --strict --no-interactive`，通过后只把 archive_status 标为 ready，不提前 completed。
+8. **S-FI1 REQUIRED — validate-and-ready-to-archive**：运行可用的 `$openspec-verify-change`、项目验证和 `openspec validate <change-id> --strict --no-interactive`，通过后只把 archive_status 标为 ready，不提前 completed。
 
 ### Governed safeguards
 
@@ -153,7 +153,7 @@ brainstorming 只在根因明确后出现真实产品/架构取舍时追加。
 4. **G-WS0 REQUIRED — mandatory-early-worktree [planning]**：在任何 OpenSpec 写入前使用安全隔离 worktree，保证 Spec Diff Review 只包含当前任务。
 5. **G-IM1 REQUIRED — governed-openspec-apply-change [implementation]**：由 OpenSpec implementation entry 调度依赖图；仅并行低耦合任务，并在内部使用对应 Superpowers 方法。
 6. **G-RV1 REQUIRED — full-verification-and-review**：执行 profile 完整验证矩阵、OpenSpec verify/validate 前置检查、全部专项 Gate 和隔离 AI Reviewer。
-7. **G-HG1 HUMAN GATE — plannotator-code-diff-review**：验证通过后再次调用 `/plannotator-review` 的 `since-base` 视图，并用 runtime `review --type code` 记录决定。
+7. **G-HG1 HUMAN GATE — plannotator-code-diff-review**：验证通过后再次调用 `$plannotator-review` 的 `since-base` 视图，并用 runtime `review --type code` 记录决定。
 
 ## Specialized Gate modules
 
@@ -168,7 +168,7 @@ brainstorming 只在根因明确后出现真实产品/架构取舍时追加。
 
 ## Parameterized verification and recovery
 
-验证命令只读取 `.claude/project-profile.yaml`，不得写死 npm、TypeScript、Python 或统一覆盖率阈值：
+验证命令只读取 `.codex/ai-coding-workflow/project-profile.yaml`，不得写死 npm、TypeScript、Python 或统一覆盖率阈值：
 
 - `targeted`：运行最直接测试和 diff check。
 - `affected`：运行受影响单元/集成测试、build/static analysis 和独立 AI review。
@@ -193,8 +193,8 @@ Hook 只执行快速确定性检查，不自动格式化、不运行全项目测
 C1 → C2 + S-WS0 baseline/isolation → M-FE1 brainstorming
 → native OpenSpec propose/state → M-FE2 writing-plans → S-PL1
 → S-DF1 only openspec/changes/<change-id>/** changed
-→ S-HG1 /plannotator-review: OpenSpec Spec Diff Review
-→ S-IM1 /opsx:apply or openspec-apply-change
+→ S-HG1 $plannotator-review: OpenSpec Spec Diff Review
+→ S-IM1 $openspec-apply-change
    └─ M-FE3 TDD + Superpowers execution methods + OpenSpec task updates
 → S-RV1 → S-FI1 strict validate / archive ready
 → openspec archive <change-id> --yes → runtime archive-complete → C7
@@ -205,7 +205,7 @@ C1 → C2 + S-WS0 baseline/isolation → M-FE1 brainstorming
 ```text
 C1 → C2 + S-WS0 baseline/isolation → M-BU1 systematic-debugging
 → M-BU2 root-cause-evidence/test-plan → native OpenSpec propose/state → S-PL1
-→ S-DF1 OpenSpec-only diff → S-HG1 /plannotator-review: Spec Diff Review
+→ S-DF1 OpenSpec-only diff → S-HG1 $plannotator-review: Spec Diff Review
 → S-IM1 OpenSpec implementation entry
    └─ M-BU3 failing-regression-test → M-BU4 minimal-fix → task updates
 → S-RV1 → S-FI1 strict validate / archive ready
@@ -217,17 +217,17 @@ C1 → C2 + S-WS0 baseline/isolation → M-BU1 systematic-debugging
 ```text
 C1 → C2 + G-WS0 mandatory worktree → G-EX1 → M-MI1 impact/rollback plan
 → G-IA1 → native OpenSpec propose/state → G-PL1 + gate plans
-→ S-DF1 OpenSpec-only diff → S-HG1 /plannotator-review: Spec Diff Review
+→ S-DF1 OpenSpec-only diff → S-HG1 $plannotator-review: Spec Diff Review
 → G-IM1 OpenSpec apply-change
    └─ M-MI2 dry-run → M-MI3 staged execution → M-MI4 rollout verification
-→ G-RV1 + gate evidence → G-HG1 /plannotator-review: Code Diff Review
+→ G-RV1 + gate evidence → G-HG1 $plannotator-review: Code Diff Review
 → S-FI1 strict validate / archive ready
 → openspec archive <change-id> --yes → runtime archive-complete → C7
 ```
 
 ## Durable workflow state contract
 
-所有 change intent 都持久化 JSON 账本：Fast 使用 `.claude/workflow-runs/<route-fingerprint>/workflow-state.json`，Standard/Governed 使用 `openspec/changes/<change-id>/workflow-state.json`。文件必须通过 `.claude/workflow-state.schema.json` 和 runtime 语义校验。
+所有 change intent 都持久化 JSON 账本：Fast 使用 `.codex/ai-coding-workflow/workflow-runs/<route-fingerprint>/workflow-state.json`，Standard/Governed 使用 `openspec/changes/<change-id>/workflow-state.json`。文件必须通过 `.codex/ai-coding-workflow/workflow-state.schema.json` 和 runtime 语义校验。
 
 ```json
 {
@@ -279,7 +279,7 @@ C1 → C2 + G-WS0 mandatory worktree → G-EX1 → M-MI1 impact/rollback plan
 ## Native capability rule
 
 - 原生 Agent command/skill 可用时必须实际调用；不得用文字标签伪装调用完成。
-- `/opsx:apply` 是 Agent 命令，不是 CLI。终端只使用当前 CLI 确实提供的 status/instructions/validate/archive。
-- `/plannotator-review` 必须真实打开当前 VCS diff；不得以 ExitPlanMode Plan Review、文本摘要或手工拼接文档替代。
+- `$openspec-apply-change` 是 Codex Skill，不是 CLI。终端只使用当前 CLI 确实提供的 status/instructions/validate/archive。
+- `$plannotator-review` 或 `plannotator review --git` 必须真实打开当前 VCS diff；不得以文本摘要或手工拼接文档替代。
 - Node runtime、状态 schema 和 Hook 片段是实际执行契约；Hook 未安装时必须在 Route Card 标明 capability degraded，不能声称已自动续跑或阻止提前结束。
 - 能力恢复不需要用户确认；无法得到仅包含当前 OpenSpec change 的 diff，或实施入口只能被非官方方案替代时，才属于保障降级。

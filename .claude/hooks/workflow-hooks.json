@@ -23,17 +23,6 @@
         ]
       }
     ],
-    "PreCompact": [
-      {
-        "matcher": "manual|auto",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/workflow-runtime.mjs\" hook pre-compact"
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [

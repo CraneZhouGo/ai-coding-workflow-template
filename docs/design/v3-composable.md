@@ -43,16 +43,18 @@ Claude Code: exploration + edits + commands + verification
 
 OpenSpec apply 使用 `/opsx:apply` 或生成的 apply-change skill；CLI fallback 只读取 `openspec instructions apply`，不调用不存在的 `openspec apply`。规划 Gate 调用 `/plannotator-review` 的 `uncommitted` 视图并展示真实 OpenSpec 文件；Governed 代码 Gate 使用 `since-base`。
 
+Codex 宿主使用同一语义但不同入口：`$openspec-propose`、`$openspec-apply-change`、可选 `$openspec-verify-change` 和 `$plannotator-review`。插件版与 Claude 版 runtime 必须字节一致，只通过 `--host codex` 选择项目支持目录和 Hook 行为；验证器拒绝两份 runtime 漂移。
+
 ## 生命周期约束
 
-借鉴 Everything Claude Code 的 session lifecycle 思路，但只采用与本模板问题直接相关的四个轻量 Hook：
+借鉴 Everything Claude Code 的 session lifecycle 思路，但按实际收益分层：
 
-- SessionStart：注入唯一活动状态的 current node。
-- PreToolUse(Edit/Write)：阻止规划阶段修改业务文件。
-- PreCompact：原子保存并记录压缩次数。
-- Stop：存在可继续节点时阻止提前结束；人工 Gate、真实 blocked 和 stop-hook 重入时放行。
+- 默认 SessionStart：注入唯一活动状态的 current node。
+- 默认 Stop：存在可继续节点时阻止提前结束；人工 Gate、真实 blocked 和 stop-hook 重入时放行。
+- strict 可选 PreToolUse(Edit/Write)：阻止规划阶段修改业务文件。
+- 不采用 PreCompact：节点转换已经原子保存，额外 Hook 只增加隐性行为。
 
-没有引入每次编辑全量格式化/类型检查、tmux 依赖、通用会话日志、全量 Agent/MCP 或固定覆盖率阈值。验证命令来自项目画像，专项 Agent 只在实际风险触发时使用。
+没有引入每次编辑全量格式化/类型检查、tmux 依赖、通用会话日志、全量 Agent/MCP 或固定覆盖率阈值。默认 profile 也不拦截文件写入。验证命令来自项目画像，专项 Agent 只在实际风险触发时使用。
 
 ## 状态与归档
 

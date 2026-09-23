@@ -1,0 +1,41 @@
+{
+  "description": "恢复未完成工作流、按需限制规划期编辑，并阻止 REQUIRED 节点未完成时提前结束。",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/scripts/workflow-runtime.mjs\" hook session-start --host codex",
+            "statusMessage": "正在恢复 AI Coding Workflow 状态",
+            "additionalContextLimit": 2000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(apply_patch|Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/scripts/workflow-runtime.mjs\" hook pre-tool-use --host codex",
+            "statusMessage": "正在检查工作流写入边界"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/scripts/workflow-runtime.mjs\" hook stop --host codex",
+            "statusMessage": "正在检查工作流是否完成"
+          }
+        ]
+      }
+    ]
+  }
+}

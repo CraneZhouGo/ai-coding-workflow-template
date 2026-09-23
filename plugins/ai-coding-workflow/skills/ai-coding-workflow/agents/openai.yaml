@@ -1,0 +1,6 @@
+interface:
+  display_name: "AI Coding Workflow"
+  short_description: "自动路由并持续执行开发任务的确定性工作流"
+  default_prompt: "使用 $ai-coding-workflow 自动选择并执行适合当前需求的开发流程。"
+policy:
+  allow_implicit_invocation: true

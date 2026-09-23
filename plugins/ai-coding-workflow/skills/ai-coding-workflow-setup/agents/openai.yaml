@@ -1,0 +1,6 @@
+interface:
+  display_name: "AI Coding Workflow Setup"
+  short_description: "检查并初始化工作流依赖、项目 Skills 与 Hooks"
+  default_prompt: "使用 $ai-coding-workflow-setup 检查并完成当前项目的工作流初始化。"
+policy:
+  allow_implicit_invocation: true

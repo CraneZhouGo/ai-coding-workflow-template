@@ -1,0 +1,13 @@
+{
+  "version": "3.3.0-codex",
+  "archive_name": "ai-coding-workflow-codex.zip",
+  "base": "plugins/ai-coding-workflow",
+  "include": [
+    ".codex-plugin/plugin.json",
+    "plugin.json",
+    "skills",
+    "hooks",
+    "scripts",
+    "assets"
+  ]
+}

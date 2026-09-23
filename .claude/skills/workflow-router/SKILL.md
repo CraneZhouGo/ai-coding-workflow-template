@@ -44,7 +44,7 @@ user-invocable: false
 - OpenSpec CLI：`status`、`instructions apply`、`validate` 和 `archive`；不得把 `/opsx:apply` 误当作 `openspec apply` CLI
 - Standard/Governed 的 Plannotator `/plannotator-review`；不把 ExitPlanMode Plan Review Hook 用作预定 Gate
 - 项目验证命令和专项 Gate 所需验证能力
-- Node.js 与 `.claude/hooks/workflow-hooks.json`；首次接入运行 runtime `install-hooks`，幂等合并到 `.claude/settings.json`
+- Node.js 与 `.claude/hooks/workflow-hooks.json`；首次接入运行 runtime `install-hooks`，默认只幂等安装 SessionStart + Stop。只有项目明确需要强制规划期写入边界时才用 `install-hooks --profile strict`
 
 能力可用就直接继续。缺失时先尝试无损恢复；只有替代方案降低保障才暂停。
 
@@ -72,7 +72,7 @@ node | phase | prerequisites | source(core|method|mode|gate) | required | status
 - S-HG1 调用 `/plannotator-review`，确认界面处于 `uncommitted` 视图；用 runtime `review --type spec` 校验 displayed paths 与 expected paths 完全一致。规划哈希变化时 runtime 自动退回 S-DF1。
 - Governed 的 G-HG1 使用 `since-base` 视图和 runtime `review --type code`。
 - OpenSpec apply-change 是实施阶段外层入口，负责读取 change、选择未完成 tasks 和更新任务状态；Superpowers 方法在其内部负责 debugging、TDD、executing-plans 和 verification，不再作为第二个并列实施器重复执行。
-- 节点完成后脚本自动持久化并进入下一节点，不询问许可。PreToolUse Hook 阻止规划阶段越界编辑；Stop Hook 阻止仍有可执行 REQUIRED 节点时提前结束。
+- 节点完成后脚本自动持久化并进入下一节点，不询问许可。默认 Stop Hook 阻止仍有可执行 REQUIRED 节点时提前结束；strict profile 的 PreToolUse Hook 才阻止规划阶段越界编辑。
 - OpenSpec 子工作流完成后返回 Router，不要求用户手动触发下一命令。
 
 ## 7. Re-route

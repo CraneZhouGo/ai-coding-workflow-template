@@ -23,5 +23,7 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Build distribution
         run: python scripts/build_distribution.py --output dist/ai-coding-workflow-template.zip
+      - name: Build Codex distribution
+        run: python scripts/build_distribution.py --platform codex --output dist/ai-coding-workflow-codex.zip
       - name: Validate distribution
-        run: python scripts/validate_workflow.py --archive dist/ai-coding-workflow-template.zip
+        run: python scripts/validate_workflow.py --archive dist/ai-coding-workflow-template.zip --codex-archive dist/ai-coding-workflow-codex.zip

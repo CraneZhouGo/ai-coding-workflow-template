@@ -1,0 +1,20 @@
+{
+  "name": "ai-coding-workflow",
+  "interface": {
+    "displayName": "AI Coding Workflow"
+  },
+  "plugins": [
+    {
+      "name": "ai-coding-workflow",
+      "source": {
+        "source": "local",
+        "path": "./plugins/ai-coding-workflow"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -48,7 +48,7 @@ Core Spine + Task Method + Risk Safeguards + Specialized Gates
 10. OpenSpec 实施入口必须调用宿主生成的 `/opsx:apply <change-id>` 或 `openspec-apply-change` skill；终端不存在 `openspec apply`。只有原生入口不可用时，才使用 `openspec instructions apply --change <change-id> --json` 获取官方实施指令。
 11. Standard/Governed 的规划 Gate 使用 `/plannotator-review` 的 `uncommitted` 视图打开 OpenSpec Spec Diff Review；runtime 必须校验 displayed paths 与 expected paths 相同。Governed 的 Code Diff Review 使用 `since-base` 视图。
 12. 子 skill/command 的 `stop`、`ready for next` 或完成消息只把控制权交还 Router；Router 自动持久化状态并调用下一节点。
-13. Standard/Governed 在 `openspec/changes/<change-id>/workflow-state.json` 保存 schema v2 节点账本、route/workflow hash、Git review base 和评审状态；SessionStart/PreCompact Hook 用它恢复，Stop Hook 阻止无理由提前结束。
+13. Standard/Governed 在 `openspec/changes/<change-id>/workflow-state.json` 保存 schema v2 节点账本、route/workflow hash、Git review base 和评审状态；默认 SessionStart Hook 用它恢复，Stop Hook 阻止无理由提前结束。PreToolUse 写入拦截只在 strict Hook profile 启用。
 14. 只在规定检查点调用 runtime 重路由；必须保存新 facts 和 reason。自动重路由只升级，不静默降级，不重复等价的 done 节点。
 15. 子代理用于隔离高噪声探索；只有低耦合且可独立验证的任务才并行。
 16. 验证命令来自项目画像，按 targeted/affected/full 范围执行，不采用固定语言命令或全局覆盖率阈值。失败时进入对应恢复方法并重新运行原验证节点。

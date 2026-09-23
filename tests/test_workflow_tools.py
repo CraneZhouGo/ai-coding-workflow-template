@@ -12,9 +12,11 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / ".claude/scripts/workflow-runtime.mjs"
+CODEX_RUNTIME = ROOT / "plugins/ai-coding-workflow/scripts/workflow-runtime.mjs"
+SETUP_CHECK = ROOT / "plugins/ai-coding-workflow/scripts/setup-check.mjs"
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from build_distribution import build  # noqa: E402
+from build_distribution import CODEX_MANIFEST_PATH, build  # noqa: E402
 from evaluate_routing import (  # noqa: E402
     classify_intent,
     classify_specialized_gates,
@@ -37,6 +39,21 @@ EXPECTED_RUNTIME = {
     ".claude/skills/workflow-router/ROUTING.md",
     ".claude/skills/workflow-router/PLAYBOOKS.md",
     "CLAUDE.md",
+}
+EXPECTED_CODEX_RUNTIME = {
+    ".codex-plugin/plugin.json",
+    "plugin.json",
+    "hooks/hooks.json",
+    "scripts/setup-check.mjs",
+    "scripts/workflow-runtime.mjs",
+    "assets/project-profile.yaml",
+    "assets/workflow-state.schema.json",
+    "skills/ai-coding-workflow/SKILL.md",
+    "skills/ai-coding-workflow/agents/openai.yaml",
+    "skills/ai-coding-workflow/references/ROUTING.md",
+    "skills/ai-coding-workflow/references/PLAYBOOKS.md",
+    "skills/ai-coding-workflow-setup/SKILL.md",
+    "skills/ai-coding-workflow-setup/agents/openai.yaml",
 }
 FAST_FACTS = {
     "requested_change": True,
@@ -124,6 +141,179 @@ class DistributionTests(unittest.TestCase):
             with ZipFile(archive) as package:
                 actual = {name for name in package.namelist() if not name.endswith("/")}
             self.assertEqual(actual, EXPECTED_RUNTIME)
+
+    def test_codex_distribution_is_deterministic_and_complete(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            first = Path(directory) / "first-codex.zip"
+            second = Path(directory) / "second-codex.zip"
+            build(first, CODEX_MANIFEST_PATH)
+            build(second, CODEX_MANIFEST_PATH)
+            self.assertEqual(first.read_bytes(), second.read_bytes())
+            with ZipFile(first) as package:
+                actual = {name for name in package.namelist() if not name.endswith("/")}
+            self.assertEqual(actual, EXPECTED_CODEX_RUNTIME)
+
+
+class CodexAdapterTests(unittest.TestCase):
+    def run_codex(
+        self, command: str, *arguments: str, payload: dict | None = None, cwd: Path = ROOT
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["node", str(CODEX_RUNTIME), command, *arguments],
+            cwd=cwd,
+            input=json.dumps(payload, ensure_ascii=False) if payload is not None else None,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=True,
+        )
+
+    def run_setup(
+        self, *arguments: str, cwd: Path = ROOT, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
+        result = subprocess.run(
+            ["node", str(SETUP_CHECK), *arguments],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        if check and result.returncode != 0:
+            raise AssertionError(result.stderr)
+        return result
+
+    def test_init_project_is_idempotent_and_preserves_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = json.loads(self.run_codex(
+                "init-project", "--host", "codex", "--root", str(root), cwd=root
+            ).stdout)
+            profile = root / ".codex/ai-coding-workflow/project-profile.yaml"
+            schema = root / ".codex/ai-coding-workflow/workflow-state.schema.json"
+            self.assertTrue(first["profile_created"])
+            self.assertTrue(profile.is_file())
+            self.assertTrue(schema.is_file())
+            profile.write_text(profile.read_text(encoding="utf-8").replace(
+                'profile_status: "unconfigured"', 'profile_status: "ready"'
+            ), encoding="utf-8")
+            second = json.loads(self.run_codex(
+                "init-project", "--host", "codex", "--root", str(root), cwd=root
+            ).stdout)
+            self.assertFalse(second["profile_created"])
+            self.assertIn('profile_status: "ready"', profile.read_text(encoding="utf-8"))
+
+    def test_setup_check_records_ready_state_idempotently(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.run_codex("init-project", "--host", "codex", "--root", str(root), cwd=root)
+            for name in ("openspec-propose", "openspec-apply-change"):
+                skill = root / ".agents/skills" / name / "SKILL.md"
+                skill.parent.mkdir(parents=True, exist_ok=True)
+                skill.write_text(f"---\nname: {name}\ndescription: test\n---\n", encoding="utf-8")
+            probe = json.dumps({
+                "node": True,
+                "superpowers_installed": True,
+                "superpowers_enabled": True,
+                "openspec_cli": True,
+                "plannotator_cli": True,
+            })
+            arguments = (
+                "--root", str(root), "--write-profile", "--require-ready", "--probe-json", probe,
+            )
+            first = json.loads(self.run_setup(*arguments, cwd=root).stdout)
+            second = json.loads(self.run_setup(*arguments, cwd=root).stdout)
+            self.assertTrue(first["ready"])
+            self.assertTrue(second["ready"])
+            profile = (root / ".codex/ai-coding-workflow/project-profile.yaml").read_text(encoding="utf-8")
+            self.assertIn('status: "ready"', profile)
+            self.assertEqual(profile.count("# ai-coding-workflow-setup:start"), 1)
+
+    def test_setup_check_reports_all_missing_capabilities(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.run_codex("init-project", "--host", "codex", "--root", str(root), cwd=root)
+            probe = json.dumps({
+                "node": True,
+                "superpowers_installed": False,
+                "superpowers_enabled": False,
+                "openspec_cli": False,
+                "plannotator_cli": False,
+            })
+            result = self.run_setup(
+                "--root", str(root), "--write-profile", "--require-ready", "--probe-json", probe,
+                cwd=root, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            status = json.loads(result.stdout)
+            self.assertEqual(status["missing"], [
+                "superpowers-plugin",
+                "openspec-cli",
+                "openspec-project-skills",
+                "plannotator-cli",
+            ])
+
+    def test_setup_check_rejects_unsupported_node_version(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.run_codex("init-project", "--host", "codex", "--root", str(root), cwd=root)
+            for name in ("openspec-propose", "openspec-apply-change"):
+                skill = root / ".agents/skills" / name / "SKILL.md"
+                skill.parent.mkdir(parents=True, exist_ok=True)
+                skill.write_text(f"---\nname: {name}\ndescription: test\n---\n", encoding="utf-8")
+            probe = json.dumps({
+                "node": True,
+                "node_version": "v20.18.0",
+                "superpowers_installed": True,
+                "superpowers_enabled": True,
+                "openspec_cli": True,
+                "plannotator_cli": True,
+            })
+            result = self.run_setup(
+                "--root", str(root), "--require-ready", "--probe-json", probe,
+                cwd=root, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            status = json.loads(result.stdout)
+            self.assertFalse(status["node"]["supported"])
+            self.assertEqual(status["missing"], ["node-version"])
+
+    def test_codex_default_and_strict_hook_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.run_codex("init-project", "--host", "codex", "--root", str(root), cwd=root)
+            state = root / ".codex/ai-coding-workflow/workflow-runs/test/workflow-state.json"
+            self.run_codex(
+                "init-state", "--host", "codex", "--root", str(root), "--output", str(state),
+                payload={
+                    "facts": FAST_FACTS,
+                    "profile_ready": True,
+                    "change_id": "codex-fast",
+                    "requirement": "Codex Hook 测试",
+                },
+                cwd=root,
+            )
+            hook_input = {
+                "cwd": str(root),
+                "tool_input": {"command": "*** Begin Patch\n*** Update File: app.py\n"},
+            }
+            default = self.run_codex(
+                "hook", "pre-tool-use", "--host", "codex", "--root", str(root),
+                payload=hook_input, cwd=root,
+            )
+            self.assertEqual(default.stdout, "")
+
+            profile = root / ".codex/ai-coding-workflow/project-profile.yaml"
+            profile.write_text(profile.read_text(encoding="utf-8").replace(
+                'hook_profile: "default"', 'hook_profile: "strict"'
+            ), encoding="utf-8")
+            strict = self.run_codex(
+                "hook", "pre-tool-use", "--host", "codex", "--root", str(root),
+                payload=hook_input, cwd=root,
+            )
+            decision = json.loads(strict.stdout)
+            self.assertEqual(
+                decision["hookSpecificOutput"]["permissionDecision"], "deny"
+            )
 
 
 class RoutingPolicyTests(unittest.TestCase):
@@ -247,16 +437,56 @@ class RuntimeBehaviorTests(unittest.TestCase):
             (root / ".claude/hooks").mkdir(parents=True)
             shutil.copy2(ROOT / ".claude/hooks/workflow-hooks.json", root / ".claude/hooks/workflow-hooks.json")
             shutil.copy2(ROOT / ".claude/project-profile.yaml", root / ".claude/project-profile.yaml")
-            (root / ".claude/settings.json").write_text('{"permissions":{"allow":["Read"]}}', encoding="utf-8")
+            profile_path = root / ".claude/project-profile.yaml"
+            profile_path.write_text(
+                profile_path.read_text(encoding="utf-8").replace('  hook_profile: "default"\n', ""),
+                encoding="utf-8",
+            )
+            custom_session_hook = {
+                "matcher": "custom",
+                "hooks": [{"type": "command", "command": "echo custom"}],
+            }
+            legacy_precompact = {
+                "matcher": "manual|auto",
+                "hooks": [{
+                    "type": "command",
+                    "command": 'node "$CLAUDE_PROJECT_DIR/.claude/scripts/workflow-runtime.mjs" hook pre-compact',
+                }],
+            }
+            (root / ".claude/settings.json").write_text(json.dumps({
+                "permissions": {"allow": ["Read"]},
+                "hooks": {
+                    "SessionStart": [custom_session_hook],
+                    "PreCompact": [legacy_precompact],
+                },
+            }), encoding="utf-8")
 
             first = json.loads(run_runtime("install-hooks", "--root", str(root), cwd=root).stdout)
             second = json.loads(run_runtime("install-hooks", "--root", str(root), cwd=root).stdout)
             settings = json.loads((root / ".claude/settings.json").read_text(encoding="utf-8"))
-            profile = (root / ".claude/project-profile.yaml").read_text(encoding="utf-8")
-            self.assertEqual(first["added"], 4)
+            self.assertEqual(first["profile"], "default")
+            self.assertEqual(first["added"], 2)
+            self.assertEqual(first["removed"], 1)
             self.assertEqual(second["added"], 0)
+            self.assertEqual(second["removed"], 0)
             self.assertEqual(settings["permissions"], {"allow": ["Read"]})
+            self.assertIn(custom_session_hook, settings["hooks"]["SessionStart"])
+            self.assertEqual(set(settings["hooks"]), {"SessionStart", "Stop"})
+
+            strict = json.loads(run_runtime(
+                "install-hooks", "--root", str(root), "--profile", "strict", cwd=root
+            ).stdout)
+            self.assertEqual(strict["added"], 1)
+            settings = json.loads((root / ".claude/settings.json").read_text(encoding="utf-8"))
+            self.assertIn("PreToolUse", settings["hooks"])
+
+            default_again = json.loads(run_runtime("install-hooks", "--root", str(root), cwd=root).stdout)
+            self.assertEqual(default_again["removed"], 1)
+            settings = json.loads((root / ".claude/settings.json").read_text(encoding="utf-8"))
+            self.assertNotIn("PreToolUse", settings["hooks"])
+            profile = profile_path.read_text(encoding="utf-8")
             self.assertIn("hooks_installed: true", profile)
+            self.assertIn('hook_profile: "default"', profile)
 
     def test_fast_upgrade_migrates_one_state_and_initializes_governed_reviews(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

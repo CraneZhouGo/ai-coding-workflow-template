@@ -6,11 +6,12 @@
 
 | 市场实践 | 官方依据 | V3.3 决策 |
 |---|---|---|
-| SessionStart、PreToolUse、PreCompact、Stop 可约束完整 Agent 生命周期 | [Claude Code hooks guide](https://code.claude.com/docs/en/hooks-guide)、[hooks reference](https://code.claude.com/docs/en/hooks) | 增加四个轻量 Hook，恢复状态、阻止规划期越界编辑、压缩前保存、阻止提前结束 |
+| SessionStart、PreToolUse、PreCompact、Stop 可约束完整 Agent 生命周期 | [Claude Code hooks guide](https://code.claude.com/docs/en/hooks-guide)、[hooks reference](https://code.claude.com/docs/en/hooks) | 默认只采用 SessionStart + Stop；PreToolUse 作为 strict 选项，PreCompact 因状态已实时持久化而不采用 |
 | Everything Claude Code 用 Hooks、agents、skills、rules 和 evals 构成持续反馈系统 | [Everything Claude Code](https://github.com/WorldFlowAI/everything-claude-code)、[hooks.json](https://github.com/WorldFlowAI/everything-claude-code/blob/main/hooks/hooks.json) | 采用 lifecycle、选择性 specialists 和行为 eval；不整体搬入其语言规则、MCP、tmux 与每次编辑检查 |
 | 方法论应按问题选择，不应把所有技能串成每次必经链 | [Superpowers](https://github.com/obra/superpowers)、[brainstorming skill](https://github.com/obra/superpowers/blob/main/skills/brainstorming/SKILL.md) | Feature 最低 Standard 并执行 brainstorming；Bug、重构、升级、迁移各走自己的 Method |
 | OpenSpec Agent 命令与 CLI 职责不同 | [OpenSpec commands](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md)、[OpenSpec CLI](https://github.com/Fission-AI/OpenSpec/blob/main/docs/cli.md) | `/opsx:apply`/apply-change skill 进入实施；CLI 仅用于 instructions/status/validate/archive，归档使用 `--yes` |
 | Plannotator 默认代码 Review 是 since-base，Spec Review 需要显式 uncommitted | [Plannotator](https://github.com/backnotprop/plannotator)、[AGENTS.md](https://github.com/backnotprop/plannotator/blob/main/AGENTS.md) | Spec Gate 校验 uncommitted 实际文件列表；Governed Code Gate 使用 since-base |
+| Codex 插件以 `skills/`、`hooks/hooks.json` 和 repo marketplace 发布；插件 Hook 必须先经用户信任 | [OpenAI Plugin Packaging](https://developers.openai.com/plugins/build/plugins) | 新增可移植 Codex 插件、`.agents/plugins/marketplace.json`、宿主 Skill 调用名和信任边界；路由 runtime 与 Claude 版保持同源 |
 | Evals 应验证行为闭环，而不是只验证提示词存在 | [Everything Claude Code eval harness](https://github.com/WorldFlowAI/everything-claude-code/tree/main/skills/eval-harness) | Python 评测调用同一个 Node Router；单元测试执行状态迁移、Hook、Review 范围与 hash drift |
 
 ## 架构结论
@@ -25,7 +26,7 @@ AI 对自然语言和代码语义做判断，runtime 对枚举、优先级、节
 
 ### 生命周期 Hook 必须轻量
 
-Hook 只做毫秒级状态检查，不运行全项目测试、不自动格式化、不阻止 OpenSpec Markdown、不要求 tmux。完整验证仍是明确的 verification 节点，命令来自项目画像。
+默认 Hook 只恢复状态和防止提前结束。PreToolUse 写入拦截必须由项目显式选择 strict profile；不使用 PreCompact，因为每个状态转换已经原子保存。Hook 不运行全项目测试、不自动格式化、不要求 tmux。完整验证仍是明确的 verification 节点，命令来自项目画像。
 
 ### 专项 Agent 按触发器使用
 
